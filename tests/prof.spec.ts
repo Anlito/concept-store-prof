@@ -92,8 +92,7 @@ test('noter les quatre parties, bilan, export, notes gardées', async ({ page })
   const bilan = page.getByTestId('bilan');
   await expect(bilan.locator('tr', { hasText: 'Léa' }).locator('.pf-proj')).toHaveText('14');
   await bilan.getByLabel('Bonus ou malus de Léa').fill('1'); await bilan.getByLabel('Bonus ou malus de Léa').press('Tab');
-  await bilan.getByRole('button', { name: 'Malus de 0,5 pour Malik' }).click();
-  await bilan.getByRole('button', { name: 'Malus de 0,5 pour Malik' }).click();
+  await bilan.getByRole('button', { name: 'Malus d’un point pour Malik' }).click(); // 14 − 1 = 13
   await bilan.getByLabel('Motif pour Malik').fill('Bavardages répétés');
   await expect(bilan.locator('tr', { hasText: 'Léa' }).locator('.pf-fin')).toHaveText('15');
   await expect(bilan.locator('tr', { hasText: 'Malik' }).locator('.pf-fin')).toHaveText('13');

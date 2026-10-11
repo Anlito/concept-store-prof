@@ -172,21 +172,21 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
       const bonus = h('input', { type: 'number', step: '0.5', min: '-20', max: '20', value: n.bonus ? String(n.bonus) : '', placeholder: '0', 'aria-label': `Bonus ou malus de ${x}`, class: 'pf-aj' }) as HTMLInputElement;
       bonus.addEventListener('change', () => { const v = parseFloat(bonus.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) e.bonus[x] = v; else delete e.bonus[x]; garder(); rendreMain(); });
       bonus.addEventListener('keydown', ev2 => ev2.stopPropagation());
-      const pas = (d: number) => h('button', { class: 'pf-pas', type: 'button', title: d > 0 ? '+0,5 point' : '−0,5 point', 'aria-label': `${d > 0 ? 'Bonus' : 'Malus'} de 0,5 pour ${x}`,
+      const pas = (d: number) => h('button', { class: 'pf-pas', type: 'button', title: d > 0 ? 'Bonus : +1 point' : 'Malus : −1 point', 'aria-label': `${d > 0 ? 'Bonus' : 'Malus'} d’un point pour ${x}`,
         onclick: () => { const v = Math.round(((e.bonus[x] ?? 0) + d) * 2) / 2; if (v) e.bonus[x] = v; else delete e.bonus[x]; garder(); rendreMain(); } }, d > 0 ? '+' : '−');
       const motif = h('input', { type: 'text', value: n.motif, placeholder: 'Motif (comportement, investissement…)', 'aria-label': `Motif pour ${x}`, class: 'pf-motif', maxLength: 120 }) as HTMLInputElement;
       motif.addEventListener('input', () => { if (motif.value.trim()) e.motifs[x] = motif.value; else delete e.motifs[x]; garder(); });
       motif.addEventListener('keydown', ev2 => ev2.stopPropagation());
       const cls = n.bonus > 0 ? ' plus' : n.bonus < 0 ? ' moins' : '';
       return h('tr', null, h('th', null, x), ...PARTS.map(p => h('td', null, fmtNote(n[p]))), h('td', { class: 'pf-proj' }, fmtNote(n.projet)),
-        h('td', { class: 'pf-bonus' + cls }, h('div', { class: 'pf-bonus-c' }, pas(-0.5), bonus, pas(0.5))), h('td', null, motif), h('td', { class: 'pf-fin' }, fmtNote(n.finale)));
+        h('td', { class: 'pf-bonus' + cls }, h('div', { class: 'pf-bonus-c' }, pas(-1), bonus, pas(1))), h('td', null, motif), h('td', { class: 'pf-fin' }, fmtNote(n.finale)));
     };
     const coefs = PARTS.map(p => `${PART_LABEL[p]} ×${c.grilles[p].coef}`).join(' · ');
     return h('div', { class: 'pf-tabc pf-scroll' },
       h('table', { class: 'pf-table', 'data-testid': 'bilan' },
         h('thead', null, h('tr', null, h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Note du projet'), h('th', null, 'Bonus / malus'), h('th', null, 'Motif'), h('th', null, 'Note finale'))),
         h('tbody', null, ...e.eleves.map(ligne))),
-      h('p', { class: 'p-help' }, `Note du projet : moyenne pondérée des parties notées (${coefs}), la même pour toute l’équipe. Note finale : note du projet + bonus / malus de l’élève (entre 0 et 20). Les coefficients se règlent dans « Grilles ».`),
+      h('p', { class: 'p-help' }, `Note du projet : moyenne pondérée des parties notées (${coefs}), la même pour toute l’équipe. Note finale : note du projet + bonus / malus de l’élève, en points (par exemple 16 − 1 = 15 ; on peut taper 0,5), entre 0 et 20. Les coefficients se règlent dans « Grilles ».`),
       ...PARTS.filter(p => e.comm[p]).map(p => h('div', { class: 'pf-comm' }, h('b', null, PART_LABEL[p]), h('p', null, e.comm[p]!))));
   }
 
