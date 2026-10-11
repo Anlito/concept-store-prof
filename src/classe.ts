@@ -196,6 +196,9 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     if (onglet === 'bilan' || !dossier) return;
     const part = onglet, e = ev(), g = c.grilles[part];
     const pts = e.notes[part];
+    // Même grille redessinée (un critère vient d'être noté) : on garde la position de défilement.
+    const cle = dossier + '|' + part, garde = panel.dataset.grille === cle ? panel.querySelector('.pn-b')?.scrollTop ?? 0 : 0;
+    panel.dataset.grille = cle;
     const note = noteSur20(g, pts), pr = progression(g, pts);
     const auto = part === 'site' && fichiers.get(dossier)?.site ? controles(fichiers.get(dossier)!) : null;
     const comm = h('textarea', { class: 'pf-commt', rows: 3, placeholder: 'Remarques (gardées pour le bilan)', 'aria-label': 'Commentaire' }) as HTMLTextAreaElement;
@@ -210,6 +213,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
         auto,
         ...g.criteres.map((cr, i) => critere(cr.t, cr.p, pts[i] ?? null, v => { pts[i] = v; garder(); rendrePanel(); rendreSide(); })),
         h('label', { class: 'tf' }, 'Commentaire', comm)));
+    panel.querySelector('.pn-b')!.scrollTop = garde;
   }
 
   /** Un critère : points possibles en boutons (0, ¼, ½, ¾, tout) ; un second clic efface la note. */

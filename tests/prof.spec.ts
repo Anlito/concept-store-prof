@@ -57,6 +57,14 @@ test('ouvrir la classe : équipes, 3D, site, plan A3', async ({ page }) => {
   await expect(page.locator('.site-tab').first()).toBeVisible();
   await expect(page.frameLocator('.site-frame').locator('body')).toContainText('Le Comptoir Vert');
   await expect(page.getByTestId('grille')).toContainText('Contrôles automatiques de Vitrine');
+  // Noter le dernier critère du site : le panneau reste à la même hauteur (pas de retour en haut)
+  const corps = page.getByTestId('grille').locator('.pn-b');
+  await corps.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const avant = await corps.evaluate(el => el.scrollTop);
+  expect(avant).toBeGreaterThan(100);
+  await page.getByTestId('grille').locator('.pf-crit').last().locator('.pf-pt').first().click();
+  await expect(page.getByTestId('grille').locator('.pf-crit').last().locator('.pf-pt.on')).toHaveCount(1);
+  expect(Math.abs((await corps.evaluate(el => el.scrollTop)) - avant)).toBeLessThan(2);
   // Équipe sans site : message clair
   await teams.nth(0).click();
   await expect(page.locator('.pf-vide')).toContainText('Pas de site (.vitrine)');
