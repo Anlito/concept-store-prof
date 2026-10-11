@@ -81,38 +81,37 @@ test('noter les quatre parties, bilan, export, notes gardées', async ({ page })
   await page.getByRole('button', { name: /Ajouter des photos/ }).click();
   await (await ch).setFiles(resolve('tests/affiche.jpg'));
   await expect(page.getByTestId('photos').locator('img')).toHaveCount(1);
-  // Oral : Léa 20, Malik 10
+  // Oral : une note globale pour l'équipe (20/20)
   await page.getByRole('tab', { name: 'Oral' }).click();
-  const noterOral = async (frac: 'last' | 'middle') => {
-    const n = await page.getByTestId('grille').locator('.pf-crit').count();
-    for (let i = 0; i < n; i++) { const b = crit(page, i).locator('.pf-pt'); await (frac === 'last' ? b.last() : b.nth(2)).click(); }
-  };
-  await noterOral('last');
-  await expect(page.getByTestId('grille')).toContainText('Oral · Léa');
-  await page.locator('.pf-card', { hasText: 'Malik' }).click();
-  await noterOral('middle');
-  await expect(page.getByTestId('note')).toHaveText('10 / 20');
-  // Bilan : moyenne des parties notées (3D 17, maquette 5, oral) — le site n'est pas noté
+  await expect(page.getByTestId('grille')).toContainText('Oral');
+  const nOral = await page.getByTestId('grille').locator('.pf-crit').count();
+  for (let i = 0; i < nOral; i++) await crit(page, i).locator('.pf-pt').last().click();
+  await expect(page.getByTestId('note')).toHaveText('20 / 20');
+  // Bilan : note du projet (17 + 5 + 20) / 3 = 14 pour l'équipe ; bonus / malus individuels avec motif
   await page.getByRole('tab', { name: 'Bilan' }).click();
   const bilan = page.getByTestId('bilan');
-  await expect(bilan.locator('tr', { hasText: 'Léa' })).toContainText('14'); // (17 + 5 + 20) / 3
-  await expect(bilan.locator('tr', { hasText: 'Malik' })).toContainText('10,7'); // (17 + 5 + 10) / 3
-  // Ajustement individuel
-  await bilan.getByLabel('Ajustement de Malik').fill('1'); await bilan.getByLabel('Ajustement de Malik').press('Tab');
-  await expect(page.getByTestId('bilan').locator('tr', { hasText: 'Malik' }).locator('.pf-fin')).toHaveText('11,7');
+  await expect(bilan.locator('tr', { hasText: 'Léa' }).locator('.pf-proj')).toHaveText('14');
+  await bilan.getByLabel('Bonus ou malus de Léa').fill('1'); await bilan.getByLabel('Bonus ou malus de Léa').press('Tab');
+  await bilan.getByRole('button', { name: 'Malus de 0,5 pour Malik' }).click();
+  await bilan.getByRole('button', { name: 'Malus de 0,5 pour Malik' }).click();
+  await bilan.getByLabel('Motif pour Malik').fill('Bavardages répétés');
+  await expect(bilan.locator('tr', { hasText: 'Léa' }).locator('.pf-fin')).toHaveText('15');
+  await expect(bilan.locator('tr', { hasText: 'Malik' }).locator('.pf-fin')).toHaveText('13');
   // Export CSV (Excel)
   const dl = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exporter (Excel)' }).click();
   const csv = readFileSync(await (await dl).path(), 'utf8');
   expect(csv.charCodeAt(0)).toBe(0xFEFF);
-  expect(csv).toContain('Classe;Équipe;Élève;Modélisation 3D /20;Site internet /20;Maquette carton /20;Oral /20;Ajustement;Note finale /20');
-  expect(csv).toContain('4B;Lea-Malik;Malik;17;;5;10;1;11,7');
+  expect(csv).toContain('Classe;Équipe;Élève;Modélisation 3D /20;Site internet /20;Maquette carton /20;Oral /20;Note du projet /20;Bonus / malus;Motif;Note finale /20');
+  expect(csv).toContain('4B;Lea-Malik;Léa;17;;5;20;14;+1;;15');
+  expect(csv).toContain('4B;Lea-Malik;Malik;17;;5;20;14;-1;Bavardages répétés;13');
   // Les notes restent sur l'ordinateur : retour à l'accueil, « Voir les notes »
   await page.locator('.tb-logo').click();
   await page.getByRole('button', { name: 'Voir les notes' }).click();
   await page.locator('.pf-team', { hasText: 'Lea-Malik' }).click();
   await page.getByRole('tab', { name: 'Bilan' }).click();
-  await expect(page.getByTestId('bilan').locator('tr', { hasText: 'Malik' }).locator('.pf-fin')).toHaveText('11,7');
+  await expect(page.getByTestId('bilan').locator('tr', { hasText: 'Malik' }).locator('.pf-fin')).toHaveText('13');
+  await expect(page.getByTestId('bilan').getByLabel('Motif pour Malik')).toHaveValue('Bavardages répétés');
   await page.getByRole('tab', { name: 'Maquette carton' }).click();
   await expect(page.getByTestId('photos').locator('img')).toHaveCount(1);
 });

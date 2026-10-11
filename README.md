@@ -4,10 +4,10 @@ Outil de l'enseignant pour le projet **« Concept Store »** (technologie, cycle
 et montre, pour chaque équipe, la **modélisation 3D** (Concept Store 3D) et le **site internet** (Vitrine),
 avec une **notation par grilles de critères** :
 
-- **Modélisation 3D**, **site internet**, **maquette carton** : notes d'équipe ;
-- **oral** : une note par élève ;
+- **modélisation 3D**, **site internet**, **maquette carton** et **oral** : notes d'équipe, par grilles de critères ;
 - **photos de la maquette carton** ajoutées par le professeur ;
-- note finale pondérée (coefficients réglables), ajustement individuel, **export CSV** (Excel, Pronote).
+- note du projet pondérée (coefficients réglables), puis **bonus / malus individuel avec son motif** (comportement, investissement…) ;
+- **export CSV** (Excel, Pronote) : une ligne par élève, motif compris.
 
 **En ligne :** https://anlito.github.io/concept-store-prof/ (Chrome ou Edge). Outil réservé au professeur.
 

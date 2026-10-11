@@ -5,8 +5,8 @@ import { rooms } from '@cs3d/model/rooms';
 import { useProfFiles } from '@cs3d/library/profFolder';
 import { verifier } from '@vitrine/lib/controle';
 import {
-  PARTS, PART_ICON, PART_LABEL, elevesDevines, exportCsv, noteSur20, notesEleve, nouvelleEval, progression,
-  type Classeur, type EvalEquipe, type PartId, type Points,
+  PARTS, PART_ICON, PART_LABEL, elevesDevines, exportCsv, noteSur20, normaliserEval, notesEleve, nouvelleEval, progression,
+  type Classeur, type EvalEquipe, type PartId,
 } from './model';
 import { ecrireClasseur } from './storage';
 import type { Equipe, Lecture } from './scan';
@@ -34,11 +34,12 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
   if (lecture?.mobilier.length) useProfFiles(lecture.mobilier, 'Mobilier');
   // Une évaluation par équipe trouvée ; les équipes déjà notées restent même si leur dossier n'est pas là.
   for (const e of lecture?.equipes ?? []) c.equipes[e.dossier] ??= nouvelleEval(elevesDevines(e.projet?.doc.team.members, e.dossier));
+  for (const e of Object.values(c.equipes)) normaliserEval(e);
   let timer = 0;
   const garder = () => { clearTimeout(timer); timer = window.setTimeout(() => void ecrireClasseur(c), 250); };
 
   const noms = () => Object.keys(c.equipes).sort((a, b) => a.localeCompare(b, 'fr'));
-  let dossier = noms()[0] ?? '', onglet: Onglet = 'modele', eleve = '';
+  let dossier = noms()[0] ?? '', onglet: Onglet = 'modele';
   const ev = () => c.equipes[dossier];
 
   const side = h('aside', { class: 'pf-side', 'aria-label': 'Équipes' });
@@ -72,8 +73,8 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
   function rendreSide() {
     side.replaceChildren(h('div', { class: 'pf-side-t' }, 'Équipes'), ...noms().map(n => {
       const e = c.equipes[n], f = fichiers.get(n);
-      const faites = PARTS.filter(p => (p === 'oral' ? e.eleves.some(el => noteSur20(c.grilles.oral, e.oral[el]) !== null) : noteSur20(c.grilles[p], e.notes[p as Exclude<PartId, 'oral'>]) !== null)).length;
-      return h('button', { class: 'pf-team' + (n === dossier ? ' on' : ''), type: 'button', 'data-equipe': n, onclick: () => { dossier = n; eleve = ''; rendre(); } },
+      const faites = PARTS.filter(p => noteSur20(c.grilles[p], e.notes[p]) !== null).length;
+      return h('button', { class: 'pf-team' + (n === dossier ? ' on' : ''), type: 'button', 'data-equipe': n, onclick: () => { dossier = n; rendre(); } },
         h('b', null, n),
         h('span', { class: 'pf-team-e' }, e.eleves.join(', ') || '—'),
         h('span', { class: 'pf-team-s' },
@@ -156,32 +157,36 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     document.body.appendChild(veil);
   }
 
-  /* ---------- Oral : une grille par élève ---------- */
+  /* ---------- Oral : une note globale pour l'équipe ---------- */
   function oral(e: EvalEquipe) {
-    if (!eleve || !e.eleves.includes(eleve)) eleve = e.eleves[0] ?? '';
     return h('div', { class: 'pf-tabc pf-scroll' },
-      h('p', { class: 'p-help' }, 'Choisis un élève, puis note son oral dans la grille à droite.'),
-      h('div', { class: 'pf-cards' }, ...e.eleves.map(x => {
-        const n = noteSur20(c.grilles.oral, e.oral[x]);
-        return h('button', { class: 'pf-card' + (x === eleve ? ' on' : ''), type: 'button', onclick: () => { eleve = x; rendreMain(); rendrePanel(); } },
-          icon('group'), h('b', null, x), h('span', { class: 'pf-note' }, n === null ? 'pas noté' : `${fmtNote(n)} / 20`));
-      })));
+      h('p', { class: 'p-help' }, 'L’oral est noté pour toute l’équipe, dans la grille à droite. Pour un élève en particulier (comportement, participation…), mets un ',
+        h('b', null, 'bonus ou un malus'), ' dans l’onglet ', h('button', { class: 'linkbtn', type: 'button', onclick: () => { onglet = 'bilan'; rendreMain(); rendrePanel(); } }, 'Bilan'), '.'),
+      h('div', { class: 'pf-cards' }, ...e.eleves.map(x => h('div', { class: 'pf-card' }, icon('group'), h('b', null, x)))));
   }
 
-  /* ---------- Bilan de l'équipe ---------- */
+  /* ---------- Bilan de l'équipe : note du projet, bonus / malus de chaque élève ---------- */
   function bilanEquipe(e: EvalEquipe) {
     const ligne = (x: string) => {
       const n = notesEleve(c, e, x);
-      const aj = h('input', { type: 'number', step: '0.5', min: '-5', max: '5', value: n.ajust ? String(n.ajust) : '', placeholder: '0', 'aria-label': `Ajustement de ${x}`, class: 'pf-aj' }) as HTMLInputElement;
-      aj.addEventListener('change', () => { const v = parseFloat(aj.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) e.ajust[x] = v; else delete e.ajust[x]; garder(); rendreMain(); });
-      return h('tr', null, h('th', null, x), h('td', null, fmtNote(n.modele)), h('td', null, fmtNote(n.site)), h('td', null, fmtNote(n.maquette)), h('td', null, fmtNote(n.oral)), h('td', null, aj), h('td', { class: 'pf-fin' }, fmtNote(n.finale)));
+      const bonus = h('input', { type: 'number', step: '0.5', min: '-20', max: '20', value: n.bonus ? String(n.bonus) : '', placeholder: '0', 'aria-label': `Bonus ou malus de ${x}`, class: 'pf-aj' }) as HTMLInputElement;
+      bonus.addEventListener('change', () => { const v = parseFloat(bonus.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) e.bonus[x] = v; else delete e.bonus[x]; garder(); rendreMain(); });
+      bonus.addEventListener('keydown', ev2 => ev2.stopPropagation());
+      const pas = (d: number) => h('button', { class: 'pf-pas', type: 'button', title: d > 0 ? '+0,5 point' : '−0,5 point', 'aria-label': `${d > 0 ? 'Bonus' : 'Malus'} de 0,5 pour ${x}`,
+        onclick: () => { const v = Math.round(((e.bonus[x] ?? 0) + d) * 2) / 2; if (v) e.bonus[x] = v; else delete e.bonus[x]; garder(); rendreMain(); } }, d > 0 ? '+' : '−');
+      const motif = h('input', { type: 'text', value: n.motif, placeholder: 'Motif (comportement, investissement…)', 'aria-label': `Motif pour ${x}`, class: 'pf-motif', maxLength: 120 }) as HTMLInputElement;
+      motif.addEventListener('input', () => { if (motif.value.trim()) e.motifs[x] = motif.value; else delete e.motifs[x]; garder(); });
+      motif.addEventListener('keydown', ev2 => ev2.stopPropagation());
+      const cls = n.bonus > 0 ? ' plus' : n.bonus < 0 ? ' moins' : '';
+      return h('tr', null, h('th', null, x), ...PARTS.map(p => h('td', null, fmtNote(n[p]))), h('td', { class: 'pf-proj' }, fmtNote(n.projet)),
+        h('td', { class: 'pf-bonus' + cls }, h('div', { class: 'pf-bonus-c' }, pas(-0.5), bonus, pas(0.5))), h('td', null, motif), h('td', { class: 'pf-fin' }, fmtNote(n.finale)));
     };
     const coefs = PARTS.map(p => `${PART_LABEL[p]} ×${c.grilles[p].coef}`).join(' · ');
     return h('div', { class: 'pf-tabc pf-scroll' },
       h('table', { class: 'pf-table', 'data-testid': 'bilan' },
-        h('thead', null, h('tr', null, h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Ajustement'), h('th', null, 'Note finale'))),
+        h('thead', null, h('tr', null, h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Note du projet'), h('th', null, 'Bonus / malus'), h('th', null, 'Motif'), h('th', null, 'Note finale'))),
         h('tbody', null, ...e.eleves.map(ligne))),
-      h('p', { class: 'p-help' }, `Note finale : moyenne pondérée des parties notées (${coefs}), plus l’ajustement. Les coefficients se règlent dans « Grilles ».`),
+      h('p', { class: 'p-help' }, `Note du projet : moyenne pondérée des parties notées (${coefs}), la même pour toute l’équipe. Note finale : note du projet + bonus / malus de l’élève (entre 0 et 20). Les coefficients se règlent dans « Grilles ».`),
       ...PARTS.filter(p => e.comm[p]).map(p => h('div', { class: 'pf-comm' }, h('b', null, PART_LABEL[p]), h('p', null, e.comm[p]!))));
   }
 
@@ -190,8 +195,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     panel.style.display = onglet === 'bilan' || !dossier ? 'none' : '';
     if (onglet === 'bilan' || !dossier) return;
     const part = onglet, e = ev(), g = c.grilles[part];
-    if (part === 'oral' && !eleve) { panel.replaceChildren(h('div', { class: 'pn-b' }, h('p', { class: 'p-help' }, 'Ajoute les élèves de l’équipe (« Modifier les élèves »).'))); return; }
-    const pts: Points = part === 'oral' ? (e.oral[eleve] ??= []) : e.notes[part];
+    const pts = e.notes[part];
     const note = noteSur20(g, pts), pr = progression(g, pts);
     const auto = part === 'site' && fichiers.get(dossier)?.site ? controles(fichiers.get(dossier)!) : null;
     const comm = h('textarea', { class: 'pf-commt', rows: 3, placeholder: 'Remarques (gardées pour le bilan)', 'aria-label': 'Commentaire' }) as HTMLTextAreaElement;
@@ -200,11 +204,11 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     comm.addEventListener('keydown', ev2 => ev2.stopPropagation());
     panel.replaceChildren(
       h('div', { class: 'pn-h' }, h('div', { class: 'pn-ic' }, icon(PART_ICON[part])),
-        h('div', { class: 'pn-t' }, h('div', { class: 'pn-t1' }, part === 'oral' ? `Oral · ${eleve}` : PART_LABEL[part]), h('div', { class: 'pn-t2' }, `${pr.faits}/${pr.total} critères notés`)),
+        h('div', { class: 'pn-t' }, h('div', { class: 'pn-t1' }, PART_LABEL[part]), h('div', { class: 'pn-t2' }, `${pr.faits}/${pr.total} critères notés`)),
         h('div', { class: 'pf-total', 'data-testid': 'note' }, note === null ? '– / 20' : `${fmtNote(note)} / 20`)),
       h('div', { class: 'pn-b' },
         auto,
-        ...g.criteres.map((cr, i) => critere(cr.t, cr.p, pts[i] ?? null, v => { pts[i] = v; garder(); rendrePanel(); rendreSide(); if (onglet === 'oral') rendreMain(); })),
+        ...g.criteres.map((cr, i) => critere(cr.t, cr.p, pts[i] ?? null, v => { pts[i] = v; garder(); rendrePanel(); rendreSide(); })),
         h('label', { class: 'tf' }, 'Commentaire', comm)));
   }
 
@@ -241,13 +245,13 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     const lignes = noms().flatMap(n => c.equipes[n].eleves.map((x, i) => {
       const r = notesEleve(c, c.equipes[n], x);
       return h('tr', null, i === 0 ? h('th', { rowSpan: c.equipes[n].eleves.length, class: 'pf-eq' }, n) : null, h('th', null, x),
-        h('td', null, fmtNote(r.modele)), h('td', null, fmtNote(r.site)), h('td', null, fmtNote(r.maquette)), h('td', null, fmtNote(r.oral)),
-        h('td', null, r.ajust ? fmtNote(r.ajust) : ''), h('td', { class: 'pf-fin' }, fmtNote(r.finale)));
+        ...PARTS.map(p => h('td', null, fmtNote(r[p]))), h('td', { class: 'pf-proj' }, fmtNote(r.projet)),
+        h('td', { class: 'pf-bonus' + (r.bonus > 0 ? ' plus' : r.bonus < 0 ? ' moins' : '') }, r.bonus ? (r.bonus > 0 ? '+' : '') + fmtNote(r.bonus) : ''), h('td', { class: 'pf-motif-t' }, r.motif), h('td', { class: 'pf-fin' }, fmtNote(r.finale)));
     }));
     const veil = h('div', { class: 'modal-veil' }, h('div', { class: 'imd hp wide', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Bilan de la classe' },
       h('div', { class: 'imd-h' }, h('h2', null, `Bilan · classe ${c.classe}`), h('button', { class: 'btn btn-ghost btn-icon', type: 'button', title: 'Fermer', onclick: fermer }, icon('close'))),
       h('div', { class: 'hp-b' },
-        h('table', { class: 'pf-table' }, h('thead', null, h('tr', null, h('th', null, 'Équipe'), h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Ajust.'), h('th', null, 'Finale'))),
+        h('table', { class: 'pf-table' }, h('thead', null, h('tr', null, h('th', null, 'Équipe'), h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Projet'), h('th', null, 'Bonus / malus'), h('th', null, 'Motif'), h('th', null, 'Finale'))),
           h('tbody', null, ...lignes)),
         h('div', { class: 'modal-btns' }, button('Exporter (Excel)', 'download', 'btn-primary', () => telecharger(`notes-concept-store-${slug(c.classe)}.csv`, exportCsv(c), 'text/csv;charset=utf-8'))))));
     document.addEventListener('keydown', onKey, true);

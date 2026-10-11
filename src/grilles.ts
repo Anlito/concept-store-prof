@@ -43,7 +43,7 @@ export function editerGrilles(c: Classeur, apres: () => void): Promise<void> {
         button('Revenir aux grilles proposées', 'restart_alt', 'btn-ghost', async () => {
           if ((await choose('Revenir aux grilles proposées ?', 'Les critères de cette classe sont remplacés ; les points déjà donnés sont effacés.', [{ label: 'Annuler', value: 'non', cls: 'btn-ghost' }, { label: 'Revenir', value: 'oui', cls: 'btn-danger' }])) !== 'oui') return;
           c.grilles = grillesParDefaut();
-          for (const e of Object.values(c.equipes)) { e.notes = { modele: [], site: [], maquette: [] }; e.oral = {}; }
+          for (const e of Object.values(c.equipes)) e.notes = { modele: [], site: [], maquette: [], oral: [] };
           fermer(); apres(); toast('Grilles proposées rétablies.');
         }),
         button('Annuler', null, 'btn-ghost', fermer),
@@ -51,10 +51,7 @@ export function editerGrilles(c: Classeur, apres: () => void): Promise<void> {
           // Les points déjà donnés suivent leur critère (critères retirés : points retirés ; nouveaux : pas notés).
           for (const p of PARTS) {
             const remap = (pts: (number | null)[]) => origine[p].map(o => (o >= 0 ? pts[o] ?? null : null));
-            for (const e of Object.values(c.equipes)) {
-              if (p === 'oral') for (const k of Object.keys(e.oral)) e.oral[k] = remap(e.oral[k]);
-              else e.notes[p] = remap(e.notes[p]);
-            }
+            for (const e of Object.values(c.equipes)) e.notes[p] = remap(e.notes[p]);
           }
           c.grilles = copie;
           fermer(); apres(); toast('Grilles enregistrées.');

@@ -1,6 +1,7 @@
 import { GRILLE as GRILLE_SITE } from '@vitrine/data/constantes';
 
-/* Évaluation d'une classe : grilles de critères, notes des équipes, oral de chaque élève, photos de la maquette.
+/* Évaluation d'une classe : grilles de critères, notes des équipes (3D, site, maquette, oral), photos de la maquette,
+   et pour chaque élève un bonus / malus (comportement pendant le projet…).
    Tout reste sur l'ordinateur du professeur (navigateur) ; un fichier « .csprof » sert de sauvegarde. */
 
 export type PartId = 'modele' | 'site' | 'maquette' | 'oral';
@@ -47,11 +48,11 @@ export interface Photo { id: string; data: string; date: number }
 export interface EvalEquipe {
   /** Élèves de l'équipe (lus dans le cartouche ou le nom du dossier, modifiables). */
   eleves: string[];
-  notes: { modele: Points; site: Points; maquette: Points };
-  /** Oral : une grille par élève. */
-  oral: Record<string, Points>;
-  /** Ajustement individuel de la note finale (points, positif ou négatif). */
-  ajust: Record<string, number>;
+  /** Notes de l'équipe, partie par partie (l'oral aussi : une note globale). */
+  notes: Record<PartId, Points>;
+  /** Bonus (positif) ou malus (négatif) de chaque élève sur la note finale, et son motif. */
+  bonus: Record<string, number>;
+  motifs: Record<string, string>;
   comm: Partial<Record<PartId, string>>;
   photos: Photo[];
 }
@@ -66,7 +67,15 @@ export interface Classeur {
 }
 
 export const nouveauClasseur = (classe: string): Classeur => ({ format: 'concept-store-prof', version: 1, classe, grilles: grillesParDefaut(), equipes: {}, maj: Date.now() });
-export const nouvelleEval = (eleves: string[]): EvalEquipe => ({ eleves, notes: { modele: [], site: [], maquette: [] }, oral: {}, ajust: {}, comm: {}, photos: [] });
+export const nouvelleEval = (eleves: string[]): EvalEquipe => ({ eleves, notes: { modele: [], site: [], maquette: [], oral: [] }, bonus: {}, motifs: {}, comm: {}, photos: [] });
+/** Évaluation enregistrée par une version précédente (oral par élève, « ajust ») : mise au format actuel. */
+export function normaliserEval(e: EvalEquipe & { oral?: unknown; ajust?: Record<string, number> }): EvalEquipe {
+  const n = e.notes as Partial<Record<PartId, Points>> | undefined;
+  e.notes = { modele: n?.modele ?? [], site: n?.site ?? [], maquette: n?.maquette ?? [], oral: n?.oral ?? [] };
+  e.bonus ??= e.ajust ?? {}; e.motifs ??= {}; e.comm ??= {}; e.photos ??= [];
+  delete e.oral; delete e.ajust;
+  return e;
+}
 
 export function estClasseur(x: unknown): x is Classeur {
   const c = x as Classeur;
@@ -86,20 +95,16 @@ export function noteSur20(g: Grille, pts: Points | undefined): number | null {
 /** Nombre de critères notés / total. */
 export const progression = (g: Grille, pts: Points | undefined) => ({ faits: g.criteres.filter((_c, i) => pts?.[i] != null).length, total: g.criteres.length });
 
-export interface NotesEleve { modele: number | null; site: number | null; maquette: number | null; oral: number | null; ajust: number; finale: number | null }
-/** Notes d'un élève : trois notes d'équipe, son oral, son ajustement, et la note finale pondérée. */
+export interface NotesEleve { modele: number | null; site: number | null; maquette: number | null; oral: number | null; projet: number | null; bonus: number; motif: string; finale: number | null }
+/** Notes d'un élève : les quatre notes de l'équipe, la note du projet (moyenne pondérée), son bonus / malus, la note finale. */
 export function notesEleve(c: Classeur, e: EvalEquipe, eleve: string): NotesEleve {
-  const n: Record<PartId, number | null> = {
-    modele: noteSur20(c.grilles.modele, e.notes.modele),
-    site: noteSur20(c.grilles.site, e.notes.site),
-    maquette: noteSur20(c.grilles.maquette, e.notes.maquette),
-    oral: noteSur20(c.grilles.oral, e.oral[eleve]),
-  };
+  const n = Object.fromEntries(PARTS.map(p => [p, noteSur20(c.grilles[p], e.notes[p])])) as Record<PartId, number | null>;
   let s = 0, k = 0;
   for (const p of PARTS) { const v = n[p]; if (v !== null) { s += v * c.grilles[p].coef; k += c.grilles[p].coef; } }
-  const ajust = e.ajust[eleve] ?? 0;
-  const finale = k ? arrondi(Math.max(0, Math.min(20, s / k + ajust))) : null;
-  return { modele: n.modele, site: n.site, maquette: n.maquette, oral: n.oral, ajust, finale };
+  const projet = k ? arrondi(s / k) : null;
+  const bonus = e.bonus[eleve] ?? 0, motif = e.motifs[eleve] ?? '';
+  const finale = projet === null ? null : arrondi(Math.max(0, Math.min(20, projet + bonus)));
+  return { ...n, projet, bonus, motif, finale } as NotesEleve;
 }
 
 /* ---------- Export pour Excel / Pronote ---------- */
@@ -107,11 +112,11 @@ const fr = (x: number | null) => (x === null ? '' : String(x).replace('.', ','))
 const cell = (s: string) => (/[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 /** CSV (séparateur « ; », virgule décimale, UTF-8 avec BOM) : une ligne par élève. */
 export function exportCsv(c: Classeur): string {
-  const rows = [['Classe', 'Équipe', 'Élève', ...PARTS.map(p => `${PART_LABEL[p]} /20`), 'Ajustement', 'Note finale /20']];
+  const rows = [['Classe', 'Équipe', 'Élève', ...PARTS.map(p => `${PART_LABEL[p]} /20`), 'Note du projet /20', 'Bonus / malus', 'Motif', 'Note finale /20']];
   for (const [dossier, e] of Object.entries(c.equipes).sort(([a], [b]) => a.localeCompare(b, 'fr'))) {
     for (const el of e.eleves) {
       const n = notesEleve(c, e, el);
-      rows.push([c.classe, dossier, el, fr(n.modele), fr(n.site), fr(n.maquette), fr(n.oral), n.ajust ? fr(n.ajust) : '', fr(n.finale)]);
+      rows.push([c.classe, dossier, el, fr(n.modele), fr(n.site), fr(n.maquette), fr(n.oral), fr(n.projet), n.bonus ? (n.bonus > 0 ? '+' : '') + fr(n.bonus) : '', n.motif, fr(n.finale)]);
     }
   }
   return '﻿' + rows.map(r => r.map(cell).join(';')).join('\r\n') + '\r\n';

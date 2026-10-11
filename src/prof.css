@@ -120,3 +120,13 @@
 .pf-coef input, .pf-gr-p { width: 70px; height: 34px; border-radius: 8px; border: 1.5px solid var(--field-border); text-align: center; font: inherit; }
 .pf-gr-l { display: flex; gap: 6px; align-items: center; }
 .pf-gr-t { flex: 1; height: 34px; border-radius: 8px; border: 1.5px solid var(--field-border); padding: 0 10px; font: inherit; font-size: 14px; }
+
+/* Bilan : note du projet, bonus / malus et motif de chaque élève */
+.pf-proj { font-weight: 700; color: var(--text-2); }
+.pf-bonus-c { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.pf-pas { width: 30px; height: 34px; border-radius: 8px; border: none; background: var(--track); font: inherit; font-size: 18px; font-weight: 800; color: var(--text-2); cursor: pointer; }
+.pf-pas:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pf-bonus.plus .pf-aj, .pf-bonus.plus { color: var(--ok-text); font-weight: 800; }
+.pf-bonus.moins .pf-aj, .pf-bonus.moins { color: #B3261E; font-weight: 800; }
+.pf-motif { width: 100%; min-width: 170px; height: 34px; border-radius: 8px; border: 1.5px solid var(--field-border); padding: 0 10px; font: inherit; font-size: 13.5px; }
+.pf-motif-t { text-align: left !important; font-size: 13px; color: var(--text-2); }
