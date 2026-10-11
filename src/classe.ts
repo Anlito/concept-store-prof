@@ -1,0 +1,260 @@
+import { h, icon } from '@cs3d/ui/dom';
+import { button, choose, toast } from '@cs3d/ui/components';
+import { area } from '@cs3d/model/geometry';
+import { rooms } from '@cs3d/model/rooms';
+import { useProfFiles } from '@cs3d/library/profFolder';
+import { verifier } from '@vitrine/lib/controle';
+import {
+  PARTS, PART_ICON, PART_LABEL, elevesDevines, exportCsv, noteSur20, notesEleve, nouvelleEval, progression,
+  type Classeur, type EvalEquipe, type PartId, type Points,
+} from './model';
+import { ecrireClasseur } from './storage';
+import type { Equipe, Lecture } from './scan';
+import { Viewer } from './viewer';
+import { SiteViewer } from './site';
+import { editerGrilles } from './grilles';
+import { app, choisirFichiers, demander, fmtNote, quand, reduirePhoto, slug, telecharger } from './ui';
+import { accueil } from './accueil';
+
+/* Écran d'une classe : équipes à gauche, travail de l'équipe au centre (3D, site, maquette, oral, bilan),
+   grille de notation à droite. Chaque changement est gardé aussitôt dans le navigateur. */
+
+type Onglet = PartId | 'bilan';
+const ONGLETS: { id: Onglet; label: string; icon: string }[] = [
+  { id: 'modele', label: 'Modélisation 3D', icon: 'view_in_ar' }, { id: 'site', label: 'Site internet', icon: 'web' },
+  { id: 'maquette', label: 'Maquette carton', icon: 'photo_camera' }, { id: 'oral', label: 'Oral', icon: 'group' },
+  { id: 'bilan', label: 'Bilan', icon: 'checklist' },
+];
+
+let viewer: Viewer | null = null, site: SiteViewer | null = null;
+
+export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
+  viewer ??= new Viewer(); site ??= new SiteViewer();
+  const fichiers = new Map<string, Equipe>((lecture?.equipes ?? []).map(e => [e.dossier, e]));
+  if (lecture?.mobilier.length) useProfFiles(lecture.mobilier, 'Mobilier');
+  // Une évaluation par équipe trouvée ; les équipes déjà notées restent même si leur dossier n'est pas là.
+  for (const e of lecture?.equipes ?? []) c.equipes[e.dossier] ??= nouvelleEval(elevesDevines(e.projet?.doc.team.members, e.dossier));
+  let timer = 0;
+  const garder = () => { clearTimeout(timer); timer = window.setTimeout(() => void ecrireClasseur(c), 250); };
+
+  const noms = () => Object.keys(c.equipes).sort((a, b) => a.localeCompare(b, 'fr'));
+  let dossier = noms()[0] ?? '', onglet: Onglet = 'modele', eleve = '';
+  const ev = () => c.equipes[dossier];
+
+  const side = h('aside', { class: 'pf-side', 'aria-label': 'Équipes' });
+  const main = h('main', { class: 'pf-main' });
+  const panel = h('aside', { class: 'pn pf-panel', 'data-testid': 'grille' });
+  const titre = h('div', { class: 'tb-status' });
+  const top = h('header', { class: 'tb' },
+    h('div', { class: 'tb-l' },
+      h('button', { class: 'tb-logo pf-logo', type: 'button', title: 'Accueil', onclick: () => { viewer?.activer(false); void accueil(); } }, icon('storefront')),
+      h('div', { class: 'tb-title' }, h('div', { class: 'tb-name pf-classe-nom' }, `Classe ${c.classe}`), titre)),
+    h('div'),
+    h('div', { class: 'tb-r' },
+      button('Bilan de la classe', 'checklist', 'btn-ghost', () => bilanClasse()),
+      button('Grilles', 'tune', 'btn-ghost', () => void editerGrilles(c, () => { garder(); rendre(); })),
+      button('Exporter (Excel)', 'download', 'btn-ghost', () => telecharger(`notes-concept-store-${slug(c.classe)}.csv`, exportCsv(c), 'text/csv;charset=utf-8')),
+      button('Sauvegarder', 'save', 'btn-primary', () => sauvegarder())));
+  app().replaceChildren(h('div', { class: 'ed pf' }, top, h('div', { class: 'ed-body' }, side, main, panel)));
+
+  function sauvegarder() {
+    const d = new Date(), j = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    telecharger(`evaluation-${slug(c.classe)}-${j}.csprof`, JSON.stringify(c), 'application/json');
+    toast('Sauvegarde téléchargée : range-la dans ton dossier personnel (pas dans celui des élèves).');
+  }
+
+  /* ---------- Rendu ---------- */
+  function rendre() {
+    titre.textContent = lecture ? `${noms().length} équipe(s) · dossier lu` : `${noms().length} équipe(s) · sans le dossier (notes seulement)`;
+    rendreSide(); rendreMain(); rendrePanel();
+  }
+
+  function rendreSide() {
+    side.replaceChildren(h('div', { class: 'pf-side-t' }, 'Équipes'), ...noms().map(n => {
+      const e = c.equipes[n], f = fichiers.get(n);
+      const faites = PARTS.filter(p => (p === 'oral' ? e.eleves.some(el => noteSur20(c.grilles.oral, e.oral[el]) !== null) : noteSur20(c.grilles[p], e.notes[p as Exclude<PartId, 'oral'>]) !== null)).length;
+      return h('button', { class: 'pf-team' + (n === dossier ? ' on' : ''), type: 'button', 'data-equipe': n, onclick: () => { dossier = n; eleve = ''; rendre(); } },
+        h('b', null, n),
+        h('span', { class: 'pf-team-e' }, e.eleves.join(', ') || '—'),
+        h('span', { class: 'pf-team-s' },
+          h('span', { class: 'pf-chip' + (f?.projet ? ' ok' : '') , title: f?.projet ? 'Modélisation 3D trouvée' : 'Pas de modélisation 3D' }, icon('view_in_ar')),
+          h('span', { class: 'pf-chip' + (f?.site ? ' ok' : ''), title: f?.site ? 'Site trouvé' : 'Pas de site' }, icon('web')),
+          h('span', { class: 'pf-chip' + (e.photos.length ? ' ok' : ''), title: `${e.photos.length} photo(s) de la maquette` }, icon('photo_camera')),
+          h('span', { class: 'pf-prog', title: 'Parties notées' }, `${faites}/4`)));
+    }));
+  }
+
+  function rendreMain() {
+    viewer?.activer(false);
+    if (!dossier) { main.replaceChildren(h('div', { class: 'pf-vide' }, 'Aucune équipe.')); return; }
+    const e = ev(), f = fichiers.get(dossier);
+    const tabs = h('div', { class: 'pf-tabs', role: 'tablist' }, ...ONGLETS.map(o => h('button', {
+      type: 'button', role: 'tab', class: 'pf-tab' + (o.id === onglet ? ' on' : ''), 'aria-selected': String(o.id === onglet),
+      onclick: () => { onglet = o.id; rendreMain(); rendrePanel(); },
+    }, icon(o.icon), o.label)));
+    const entete = h('div', { class: 'pf-head' },
+      h('div', null, h('h1', null, dossier), h('div', { class: 'pf-eleves' }, ...e.eleves.map(x => h('span', { class: 'pf-eleve' }, x)),
+        h('button', { class: 'linkbtn', type: 'button', onclick: () => void modifierEleves() }, 'Modifier les élèves'))),
+      tabs);
+    main.replaceChildren(entete, contenu(e, f));
+  }
+
+  function contenu(e: EvalEquipe, f: Equipe | undefined): HTMLElement {
+    if (onglet === 'modele') {
+      if (!f?.projet) return vide('view_in_ar', lecture ? 'Pas de modélisation 3D (.json) dans ce dossier d’équipe.' : 'Ouvre le dossier de la classe pour voir la modélisation 3D.');
+      const d = f.projet.doc, nbPieces = d.floor ? rooms(d).length : 0;
+      const infos = h('div', { class: 'pf-infos' },
+        info('description', f.projet.nom, `enregistré ${quand(f.projet.date)}`),
+        info('grid_on', d.floor ? `${Math.round(area(d.floor.points) * 10) / 10} m²`.replace('.', ',') : 'Pas de surface', `${nbPieces} pièce(s) · ${d.partitions.length} cloison(s)`),
+        info('chair', `${d.objects.length} meuble(s)`, `${d.creations.length} création(s) de l’atelier`),
+        info('print', f.plans.length ? `${f.plans.length} PDF` : 'Pas de plan A3', f.plans.length ? 'dans le dossier' : 'enregistré par l’équipe', f.plans.length ? () => ouvrirFichier(f.plans[0]) : undefined));
+      viewer!.afficher(d);
+      requestAnimationFrame(() => viewer!.activer(onglet === 'modele'));
+      return h('div', { class: 'pf-tabc' }, infos, viewer!.el);
+    }
+    if (onglet === 'site') {
+      if (!f?.site) return vide('web', lecture ? 'Pas de site (.vitrine) dans ce dossier d’équipe.' : 'Ouvre le dossier de la classe pour voir le site.');
+      void site!.afficher(f.site.projet);
+      return h('div', { class: 'pf-tabc' }, h('div', { class: 'pf-infos' }, info('description', f.site.nom, `enregistré ${quand(f.site.date)}`), info('web', f.site.projet.nom, `${f.site.projet.pages.filter(p => p.active).length} page(s)`)), site!.el);
+    }
+    if (onglet === 'maquette') return maquette(e, f);
+    if (onglet === 'oral') return oral(e);
+    return bilanEquipe(e);
+  }
+
+  const info = (ic: string, t: string, s: string, onclick?: () => void) =>
+    h(onclick ? 'button' : 'div', { class: 'pf-info' + (onclick ? ' clic' : ''), type: onclick ? 'button' : undefined, onclick }, icon(ic), h('span', null, h('b', null, t), h('span', null, s)));
+  const vide = (ic: string, t: string) => h('div', { class: 'pf-vide' }, icon(ic), h('p', null, t));
+  function ouvrirFichier(f: File) { const u = URL.createObjectURL(f); window.open(u, '_blank'); setTimeout(() => URL.revokeObjectURL(u), 60000); }
+
+  /* ---------- Maquette carton : photos ---------- */
+  function maquette(e: EvalEquipe, f: Equipe | undefined) {
+    const ajouter = async (files: File[]) => {
+      const imgs = files.filter(x => x.type.startsWith('image/'));
+      if (!imgs.length) return;
+      for (const x of imgs) e.photos.push({ id: Math.random().toString(36).slice(2, 10), data: await reduirePhoto(x), date: Date.now() });
+      garder(); rendreMain(); rendreSide();
+      toast(`${imgs.length} photo(s) ajoutée(s).`);
+    };
+    const zone = h('div', { class: 'pf-drop', 'data-testid': 'photos' },
+      ...e.photos.map(p => h('figure', { class: 'pf-photo' },
+        h('img', { src: p.data, alt: 'Photo de la maquette', onclick: () => agrandir(p.data) }),
+        h('button', { class: 'pf-photo-x', type: 'button', title: 'Retirer cette photo', 'aria-label': 'Retirer cette photo', onclick: async () => {
+          if ((await choose('Retirer cette photo ?', 'Elle sera effacée de l’évaluation.', [{ label: 'Annuler', value: 'non', cls: 'btn-ghost' }, { label: 'Retirer', value: 'oui', cls: 'btn-danger' }])) !== 'oui') return;
+          e.photos = e.photos.filter(x => x.id !== p.id); garder(); rendreMain(); rendreSide();
+        } }, icon('delete')))),
+      h('button', { class: 'pf-add', type: 'button', onclick: async () => void ajouter(await choisirFichiers('image/*', true)) }, icon('add_photo_alternate'), h('b', null, 'Ajouter des photos'), h('span', null, 'ou glisse-les ici')));
+    zone.addEventListener('dragover', ev => { ev.preventDefault(); zone.classList.add('over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+    zone.addEventListener('drop', ev => { ev.preventDefault(); zone.classList.remove('over'); void ajouter([...(ev.dataTransfer?.files ?? [])]); });
+    const plans = f?.plans.length ? h('div', { class: 'pf-infos' }, ...f.plans.map(p => info('print', p.name, 'plan A3 de l’équipe : à comparer avec la maquette', () => ouvrirFichier(p)))) : null;
+    return h('div', { class: 'pf-tabc pf-scroll' }, plans, zone);
+  }
+  function agrandir(src: string) {
+    const fermer = () => veil.remove();
+    const veil = h('div', { class: 'modal-veil pf-zoom', onclick: fermer }, h('img', { src, alt: 'Photo agrandie' }));
+    document.body.appendChild(veil);
+  }
+
+  /* ---------- Oral : une grille par élève ---------- */
+  function oral(e: EvalEquipe) {
+    if (!eleve || !e.eleves.includes(eleve)) eleve = e.eleves[0] ?? '';
+    return h('div', { class: 'pf-tabc pf-scroll' },
+      h('p', { class: 'p-help' }, 'Choisis un élève, puis note son oral dans la grille à droite.'),
+      h('div', { class: 'pf-cards' }, ...e.eleves.map(x => {
+        const n = noteSur20(c.grilles.oral, e.oral[x]);
+        return h('button', { class: 'pf-card' + (x === eleve ? ' on' : ''), type: 'button', onclick: () => { eleve = x; rendreMain(); rendrePanel(); } },
+          icon('group'), h('b', null, x), h('span', { class: 'pf-note' }, n === null ? 'pas noté' : `${fmtNote(n)} / 20`));
+      })));
+  }
+
+  /* ---------- Bilan de l'équipe ---------- */
+  function bilanEquipe(e: EvalEquipe) {
+    const ligne = (x: string) => {
+      const n = notesEleve(c, e, x);
+      const aj = h('input', { type: 'number', step: '0.5', min: '-5', max: '5', value: n.ajust ? String(n.ajust) : '', placeholder: '0', 'aria-label': `Ajustement de ${x}`, class: 'pf-aj' }) as HTMLInputElement;
+      aj.addEventListener('change', () => { const v = parseFloat(aj.value.replace(',', '.')); if (Number.isFinite(v) && v !== 0) e.ajust[x] = v; else delete e.ajust[x]; garder(); rendreMain(); });
+      return h('tr', null, h('th', null, x), h('td', null, fmtNote(n.modele)), h('td', null, fmtNote(n.site)), h('td', null, fmtNote(n.maquette)), h('td', null, fmtNote(n.oral)), h('td', null, aj), h('td', { class: 'pf-fin' }, fmtNote(n.finale)));
+    };
+    const coefs = PARTS.map(p => `${PART_LABEL[p]} ×${c.grilles[p].coef}`).join(' · ');
+    return h('div', { class: 'pf-tabc pf-scroll' },
+      h('table', { class: 'pf-table', 'data-testid': 'bilan' },
+        h('thead', null, h('tr', null, h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Ajustement'), h('th', null, 'Note finale'))),
+        h('tbody', null, ...e.eleves.map(ligne))),
+      h('p', { class: 'p-help' }, `Note finale : moyenne pondérée des parties notées (${coefs}), plus l’ajustement. Les coefficients se règlent dans « Grilles ».`),
+      ...PARTS.filter(p => e.comm[p]).map(p => h('div', { class: 'pf-comm' }, h('b', null, PART_LABEL[p]), h('p', null, e.comm[p]!))));
+  }
+
+  /* ---------- Grille de notation (panneau de droite) ---------- */
+  function rendrePanel() {
+    panel.style.display = onglet === 'bilan' || !dossier ? 'none' : '';
+    if (onglet === 'bilan' || !dossier) return;
+    const part = onglet, e = ev(), g = c.grilles[part];
+    if (part === 'oral' && !eleve) { panel.replaceChildren(h('div', { class: 'pn-b' }, h('p', { class: 'p-help' }, 'Ajoute les élèves de l’équipe (« Modifier les élèves »).'))); return; }
+    const pts: Points = part === 'oral' ? (e.oral[eleve] ??= []) : e.notes[part];
+    const note = noteSur20(g, pts), pr = progression(g, pts);
+    const auto = part === 'site' && fichiers.get(dossier)?.site ? controles(fichiers.get(dossier)!) : null;
+    const comm = h('textarea', { class: 'pf-commt', rows: 3, placeholder: 'Remarques (gardées pour le bilan)', 'aria-label': 'Commentaire' }) as HTMLTextAreaElement;
+    comm.value = e.comm[part] ?? '';
+    comm.addEventListener('input', () => { e.comm[part] = comm.value; garder(); });
+    comm.addEventListener('keydown', ev2 => ev2.stopPropagation());
+    panel.replaceChildren(
+      h('div', { class: 'pn-h' }, h('div', { class: 'pn-ic' }, icon(PART_ICON[part])),
+        h('div', { class: 'pn-t' }, h('div', { class: 'pn-t1' }, part === 'oral' ? `Oral · ${eleve}` : PART_LABEL[part]), h('div', { class: 'pn-t2' }, `${pr.faits}/${pr.total} critères notés`)),
+        h('div', { class: 'pf-total', 'data-testid': 'note' }, note === null ? '– / 20' : `${fmtNote(note)} / 20`)),
+      h('div', { class: 'pn-b' },
+        auto,
+        ...g.criteres.map((cr, i) => critere(cr.t, cr.p, pts[i] ?? null, v => { pts[i] = v; garder(); rendrePanel(); rendreSide(); if (onglet === 'oral') rendreMain(); })),
+        h('label', { class: 'tf' }, 'Commentaire', comm)));
+  }
+
+  /** Un critère : points possibles en boutons (0, ¼, ½, ¾, tout) ; un second clic efface la note. */
+  function critere(t: string, max: number, v: number | null, set: (x: number | null) => void) {
+    const vals = [...new Set([0, max / 4, max / 2, (3 * max) / 4, max].map(x => Math.round(x * 2) / 2))];
+    return h('div', { class: 'pf-crit' },
+      h('div', { class: 'pf-crit-t' }, h('span', null, t), h('b', null, v === null ? `– / ${fmtNote(max)}` : `${fmtNote(v)} / ${fmtNote(max)}`)),
+      h('div', { class: 'pf-crit-b', role: 'group', 'aria-label': t }, ...vals.map(x => h('button', {
+        type: 'button', class: 'pf-pt' + (v === x ? ' on' : ''), 'aria-pressed': String(v === x), title: `${fmtNote(x)} point(s)`,
+        onclick: () => set(v === x ? null : x),
+      }, fmtNote(x)))));
+  }
+
+  /** Les 8 contrôles automatiques de Vitrine, pour aider à noter le site. */
+  function controles(f: Equipe) {
+    const vs = verifier(f.site!.projet);
+    return h('div', { class: 'pf-auto' }, h('div', { class: 'p-sec-t' }, `Contrôles automatiques de Vitrine : ${vs.filter(x => x.ok).length}/${vs.length}`),
+      ...vs.map(x => h('div', { class: 'pf-auto-l' + (x.ok ? ' ok' : ''), title: x.ok ? '' : x.detail ?? '' }, icon(x.ok ? 'check_circle' : 'warning', true), x.t)));
+  }
+
+  async function modifierEleves() {
+    const e = ev();
+    const v = await demander('Élèves de l’équipe', 'Les prénoms, séparés par des virgules.', e.eleves.join(', '), { ok: 'Enregistrer' });
+    if (v === null) return;
+    e.eleves = v.split(',').map(s => s.trim()).filter(Boolean);
+    garder(); rendre();
+  }
+
+  /* ---------- Bilan de la classe ---------- */
+  function bilanClasse() {
+    const fermer = () => { veil.remove(); document.removeEventListener('keydown', onKey, true); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); fermer(); } };
+    const lignes = noms().flatMap(n => c.equipes[n].eleves.map((x, i) => {
+      const r = notesEleve(c, c.equipes[n], x);
+      return h('tr', null, i === 0 ? h('th', { rowSpan: c.equipes[n].eleves.length, class: 'pf-eq' }, n) : null, h('th', null, x),
+        h('td', null, fmtNote(r.modele)), h('td', null, fmtNote(r.site)), h('td', null, fmtNote(r.maquette)), h('td', null, fmtNote(r.oral)),
+        h('td', null, r.ajust ? fmtNote(r.ajust) : ''), h('td', { class: 'pf-fin' }, fmtNote(r.finale)));
+    }));
+    const veil = h('div', { class: 'modal-veil' }, h('div', { class: 'imd hp wide', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Bilan de la classe' },
+      h('div', { class: 'imd-h' }, h('h2', null, `Bilan · classe ${c.classe}`), h('button', { class: 'btn btn-ghost btn-icon', type: 'button', title: 'Fermer', onclick: fermer }, icon('close'))),
+      h('div', { class: 'hp-b' },
+        h('table', { class: 'pf-table' }, h('thead', null, h('tr', null, h('th', null, 'Équipe'), h('th', null, 'Élève'), ...PARTS.map(p => h('th', null, PART_LABEL[p])), h('th', null, 'Ajust.'), h('th', null, 'Finale'))),
+          h('tbody', null, ...lignes)),
+        h('div', { class: 'modal-btns' }, button('Exporter (Excel)', 'download', 'btn-primary', () => telecharger(`notes-concept-store-${slug(c.classe)}.csv`, exportCsv(c), 'text/csv;charset=utf-8'))))));
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(veil);
+  }
+
+  if (!lecture) toast('Notes seulement : ouvre le dossier de la classe pour voir la 3D et les sites.');
+  else if (lecture.equipes.some(e => e.erreurs.length)) toast(`Fichiers illisibles : ${lecture.equipes.flatMap(e => e.erreurs).join(', ')}`, undefined, 'warning');
+  rendre();
+}

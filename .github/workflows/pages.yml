@@ -1,0 +1,63 @@
+# Met l'outil professeur en ligne sur GitHub Pages : https://anlito.github.io/concept-store-prof/
+# Il est construit avec le code des deux outils élèves (Concept Store 3D et Vitrine), récupérés ici dans deps/.
+# Il se reconstruit à chaque envoi sur main, chaque lundi (pour suivre les mises à jour des outils élèves),
+# ou à la demande (onglet Actions › « Run workflow »).
+name: Mise en ligne (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      CS3D_DIR: deps/concept-store-3d
+      VITRINE_DIR: deps/creation-site-vitrine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Anlito/concept-store-3d
+          path: deps/concept-store-3d
+      - uses: actions/checkout@v4
+        with:
+          repository: Anlito/creation-site-vitrine
+          path: deps/creation-site-vitrine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Concept Store 3D (modèles de la bibliothèque)
+        working-directory: deps/concept-store-3d
+        run: npm ci && node scripts/build-library.mjs
+      - name: Vitrine
+        working-directory: deps/creation-site-vitrine
+        run: npm ci
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

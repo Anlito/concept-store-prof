@@ -1,0 +1,122 @@
+/* Outil professeur : mise en page propre (le reste vient des styles de Concept Store 3D). */
+.pf-logo { background: var(--ink) !important; color: #fff !important; }
+.pf-ver { font-size: 13px; color: var(--text-3); }
+.pf-lead { max-width: 720px; margin: -8px 0 24px; color: var(--text-2); font-size: 16px; line-height: 1.5; }
+.pf-classes { display: flex; flex-direction: column; gap: 8px; margin-top: 32px; max-width: 900px; }
+.pf-classes h2 { font-size: 18px; margin: 0 0 4px; }
+.pf-classe { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #fff; border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--border); }
+.pf-classe-t { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.pf-classe-t b { font-size: 16px; }
+.pf-classe-t span { font-size: 13px; color: var(--text-3); }
+
+/* Écran d'une classe */
+.pf .ed-body { min-height: 0; }
+.pf-side { width: 250px; flex: none; background: #fff; border-right: 1px solid var(--border); overflow: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+.pf-side-t { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); padding: 2px 6px 4px; }
+.pf-team { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: none; border-radius: 12px; background: transparent; text-align: left; cursor: pointer; font: inherit; color: var(--ink); }
+.pf-team:hover { background: var(--hover); }
+.pf-team.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--danger-border); }
+.pf-team b { font-size: 15px; }
+.pf-team-e { font-size: 12.5px; color: var(--text-3); }
+.pf-team-s { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.pf-chip { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; background: var(--track); color: var(--disabled); font-size: 15px; }
+.pf-chip.ok { background: var(--ok-bg); color: var(--ok); }
+.pf-prog { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--text-2); padding-left: 6px; }
+
+.pf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-app); }
+.pf-head { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 0; }
+.pf-head h1 { margin: 0; font-size: 22px; }
+.pf-eleves { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.pf-eleve { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #fff; box-shadow: inset 0 0 0 1px var(--border); }
+.pf-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.pf-tab { display: flex; align-items: center; gap: 6px; padding: 9px 14px; border: none; background: transparent; border-radius: 10px 10px 0 0; font: inherit; font-size: 14px; font-weight: 700; color: var(--text-2); cursor: pointer; }
+.pf-tab:hover { background: var(--hover); }
+.pf-tab.on { background: #fff; color: var(--accent-hover); box-shadow: inset 0 -3px 0 var(--accent); }
+.pf-tab .ic { font-size: 19px; }
+.pf-tabc { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 18px 16px; }
+.pf-scroll { overflow: auto; }
+.pf-infos { display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-info { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--border); border: none; font: inherit; text-align: left; color: var(--ink); }
+.pf-info.clic { cursor: pointer; }
+.pf-info.clic:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pf-info .ic { color: var(--accent); font-size: 20px; flex: none; }
+.pf-info > span { display: flex; flex-direction: column; font-size: 13px; line-height: 1.25; }
+.pf-info > span > span { color: var(--text-3); font-size: 12px; }
+.pf-vide { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); padding: 40px; text-align: center; }
+.pf-vide .ic { font-size: 44px; }
+
+/* Vue 3D */
+.vw { flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--bg-3d); box-shadow: inset 0 0 0 1px var(--border); position: relative; }
+.vw-bar { position: absolute; top: 12px; left: 12px; z-index: 2; }
+.vw-vp { flex: 1; min-height: 0; position: relative; }
+.vw-vp .vp-3d, .vw-vp .vp-2d { position: absolute; inset: 0; }
+
+/* Site */
+.site-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.site-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.site-tab { padding: 6px 12px; border-radius: 99px; border: none; background: #fff; box-shadow: inset 0 0 0 1px var(--border); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.site-tab.on { background: var(--ink); color: #fff; box-shadow: none; }
+.site-wait { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 13px; }
+.site-box { flex: 1; min-height: 0; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--border), 0 6px 20px rgba(0,0,0,.08); background: #fff; }
+.site-frame { width: 100%; height: 100%; border: none; display: block; }
+
+/* Maquette : photos */
+.pf-drop { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 10px; border-radius: 14px; border: 2px dashed transparent; }
+.pf-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.pf-photo { position: relative; margin: 0; border-radius: 12px; overflow: hidden; aspect-ratio: 4 / 3; background: #fff; box-shadow: inset 0 0 0 1px var(--border); }
+.pf-photo img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; display: block; }
+.pf-photo-x { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border-radius: 9px; border: none; background: rgba(255,255,255,.9); color: var(--danger, #B3261E); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.pf-add { aspect-ratio: 4 / 3; border-radius: 12px; border: 2px dashed var(--field-border); background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; font: inherit; color: var(--text-2); }
+.pf-add .ic { font-size: 34px; color: var(--accent); }
+.pf-add span { font-size: 12.5px; color: var(--text-3); }
+.pf-add:hover { border-color: var(--accent); }
+.pf-zoom img { max-width: 92vw; max-height: 90vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+
+/* Oral */
+.pf-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.pf-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px; border-radius: 14px; border: none; background: #fff; box-shadow: inset 0 0 0 1.5px var(--border); font: inherit; cursor: pointer; text-align: left; }
+.pf-card .ic { color: var(--accent); font-size: 22px; }
+.pf-card b { font-size: 16px; }
+.pf-card.on { box-shadow: inset 0 0 0 2.5px var(--accent); background: var(--sel-bg); }
+.pf-note { font-size: 13px; color: var(--text-3); font-weight: 700; }
+
+/* Bilan */
+.pf-table { border-collapse: collapse; width: 100%; background: #fff; border-radius: 12px; overflow: hidden; font-size: 14px; }
+.pf-table th, .pf-table td { padding: 9px 12px; border-bottom: 1px solid var(--sep); text-align: center; }
+.pf-table thead th { background: var(--bg-app); font-size: 12.5px; color: var(--text-2); }
+.pf-table tbody th { text-align: left; }
+.pf-table .pf-eq { vertical-align: top; color: var(--text-2); }
+.pf-fin { font-weight: 800; color: var(--accent-hover); }
+.pf-aj { width: 72px; height: 34px; border-radius: 8px; border: 1.5px solid var(--field-border); text-align: center; font: inherit; }
+.pf-comm { background: #fff; border-radius: 12px; padding: 10px 14px; box-shadow: inset 0 0 0 1px var(--border); }
+.pf-comm p { margin: 4px 0 0; white-space: pre-wrap; color: var(--text-2); font-size: 14px; }
+
+/* Grille de notation */
+.pf-panel { width: 360px; }
+.pf-total { margin-left: auto; font-size: 20px; font-weight: 800; color: var(--accent-hover); white-space: nowrap; }
+.pf-crit { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--sep); }
+.pf-crit-t { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.35; }
+.pf-crit-t span { flex: 1; }
+.pf-crit-t b { white-space: nowrap; font-size: 13px; }
+.pf-crit-b { display: flex; gap: 4px; }
+.pf-pt { flex: 1; height: 34px; border-radius: 9px; border: none; background: var(--track); font: inherit; font-weight: 800; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.pf-pt:hover { background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pf-pt.on { background: var(--accent); color: #fff; }
+.pf-commt { width: 100%; border: 1.5px solid var(--field-border); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 14px; resize: vertical; }
+.pf-auto { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--bg-app); }
+.pf-auto-l { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--warn-text); }
+.pf-auto-l.ok { color: var(--ok-text); }
+
+/* Grilles (réglage) */
+.pf-grilles { gap: 18px; }
+.pf-gr-help { margin: 12px 24px 0; }
+.pf-gr { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 14px; background: var(--bg-app); }
+.pf-gr-h { display: flex; align-items: center; gap: 8px; }
+.pf-gr-h h3 { margin: 0; font-size: 16px; }
+.pf-gr-h .ic { color: var(--accent); }
+.pf-gr-tot { font-size: 12.5px; font-weight: 700; color: var(--text-3); }
+.pf-gr-tot.warn { color: var(--warn-text); }
+.pf-coef { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text-2); }
+.pf-coef input, .pf-gr-p { width: 70px; height: 34px; border-radius: 8px; border: 1.5px solid var(--field-border); text-align: center; font: inherit; }
+.pf-gr-l { display: flex; gap: 6px; align-items: center; }
+.pf-gr-t { flex: 1; height: 34px; border-radius: 8px; border: 1.5px solid var(--field-border); padding: 0 10px; font: inherit; font-size: 14px; }
