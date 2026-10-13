@@ -3,6 +3,7 @@ import '@cs3d/app/app.css';
 import './prof.css';
 import { accueil } from './accueil';
 import { sampleProject } from '@cs3d/model/project';
+import { ajouterEtage } from '@cs3d/model/levels';
 import { nouveauProjet } from '@vitrine/model';
 
 /* Concept Store · Professeur : ouvre le dossier d'une classe, montre la 3D et le site de chaque équipe,
@@ -14,6 +15,6 @@ import { nouveauProjet } from '@vitrine/model';
 
 /* Pour les tests automatisés : fabriquer de vrais fichiers d'équipe avec le code des deux outils élèves. */
 (window as unknown as { csprofTest: unknown }).csprofTest = {
-  projet3D: (equipe: string, membres: string) => { const p = sampleProject(); p.team = { name: equipe, members: membres, klass: '4B' }; return JSON.stringify({ ...p, savedAt: new Date().toISOString() }); },
+  projet3D: (equipe: string, membres: string, etage = false) => { const p = sampleProject(); p.team = { name: equipe, members: membres, klass: '4B' }; if (etage) ajouterEtage(p); return JSON.stringify({ ...p, savedAt: new Date().toISOString() }); },
   site: (nom: string) => JSON.stringify(nouveauProjet(nom)),
 };

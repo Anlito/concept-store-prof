@@ -19,7 +19,7 @@ async function fabriquerClasse(page: Page) {
   await page.goto('/');
   const t = await page.evaluate(() => {
     const k = (window as any).csprofTest;
-    return { a: k.projet3D('Les Bâtisseurs', 'Léa, Malik'), b: k.projet3D('Les Créateurs', 'Inès, Tom'), site: k.site('Le Comptoir Vert') };
+    return { a: k.projet3D('Les Bâtisseurs', 'Léa, Malik'), b: k.projet3D('Les Créateurs', 'Inès, Tom', true), site: k.site('Le Comptoir Vert') };
   });
   const root = mkdtempSync(join(tmpdir(), 'csprof-')), classe = join(root, 'CONCEPT STORE');
   for (const d of ['Lea-Malik', 'Ines-Tom', 'Concept-Store-3D']) mkdirSync(join(classe, d), { recursive: true });
@@ -65,8 +65,14 @@ test('ouvrir la classe : équipes, 3D, site, plan A3', async ({ page }) => {
   await page.getByTestId('grille').locator('.pf-crit').last().locator('.pf-pt').first().click();
   await expect(page.getByTestId('grille').locator('.pf-crit').last().locator('.pf-pt.on')).toHaveCount(1);
   expect(Math.abs((await corps.evaluate(el => el.scrollTop)) - avant)).toBeLessThan(2);
-  // Équipe sans site : message clair
+  // Équipe à étage : la 3D montre les deux niveaux, et on choisit celui de devant
   await teams.nth(0).click();
+  await page.getByRole('tab', { name: 'Modélisation 3D' }).click();
+  await expect(page.locator('.pf-infos')).toContainText('+ 1 étage');
+  await page.locator('.vw-niv').getByRole('button', { name: 'Étage', exact: true }).click();
+  await expect(page.locator('.vw-niv').getByRole('button', { name: 'Voir le RDC' })).toBeVisible();
+  // Équipe sans site : message clair
+  await page.getByRole('tab', { name: 'Site internet' }).click();
   await expect(page.locator('.pf-vide')).toContainText('Pas de site (.vitrine)');
 });
 

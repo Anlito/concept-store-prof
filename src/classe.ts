@@ -106,7 +106,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
       const d = f.projet.doc, nbPieces = d.floor ? rooms(d).length : 0;
       const infos = h('div', { class: 'pf-infos' },
         info('description', f.projet.nom, `enregistré ${quand(f.projet.date)}`),
-        info('grid_on', d.floor ? `${Math.round(area(d.floor.points) * 10) / 10} m²`.replace('.', ',') : 'Pas de surface', `${nbPieces} pièce(s) · ${d.partitions.length} cloison(s)`),
+        info('grid_on', d.floor ? `${Math.round(area(d.floor.points) * 10) / 10} m²`.replace('.', ',') : 'Pas de surface', `${nbPieces} pièce(s) · ${d.partitions.length} cloison(s)${d.autreNiveau ? ' · + 1 étage' : ''}`),
         info('chair', `${d.objects.length} meuble(s)`, `${d.creations.length} création(s) de l’atelier`),
         info('print', f.plans.length ? `${f.plans.length} PDF` : 'Pas de plan A3', f.plans.length ? 'dans le dossier' : 'enregistré par l’équipe', f.plans.length ? () => ouvrirFichier(f.plans[0]) : undefined));
       viewer!.afficher(d);
