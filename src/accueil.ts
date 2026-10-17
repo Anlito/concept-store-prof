@@ -46,6 +46,7 @@ async function ouvrirDossier(classeConnue?: string) {
     nom = handle.name;
     toast('Lecture des dossiers des équipes…');
     lecture = await lireClasse(await fichiersDuDossier(handle), nom);
+    lecture.racine = handle;
   } else {
     const files = await new Promise<File[]>(resolve => {
       const input = h('input', { type: 'file', webkitdirectory: true, multiple: true, style: { display: 'none' }, 'data-testid': 'dossier-input' }) as HTMLInputElement;
@@ -77,6 +78,7 @@ async function rouvrir(c: Classeur) {
       if ((await h0.queryPermission?.({ mode: 'read' })) !== 'granted' && (await h0.requestPermission({ mode: 'read' })) !== 'granted') throw new Error('refus');
       toast('Lecture des dossiers des équipes…');
       const lecture = await lireClasse(await fichiersDuDossier(h0), h0.name);
+      lecture.racine = h0;
       await ouvrirClasse(c, lecture);
       return;
     } catch { /* dossier déplacé, ou autorisation refusée : on le redemande */ }

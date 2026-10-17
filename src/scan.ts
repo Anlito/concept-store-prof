@@ -16,7 +16,11 @@ export interface Equipe {
   /** Fichiers illisibles (projet abîmé, autre format…) : signalés au professeur. */
   erreurs: string[];
 }
-export interface Lecture { equipes: Equipe[]; mobilier: { path: string; bytes: number; data: ArrayBuffer }[] }
+export interface Lecture {
+  equipes: Equipe[]; mobilier: { path: string; bytes: number; data: ArrayBuffer }[];
+  /** Dossier de la classe ouvert avec le sélecteur de Chrome / Edge : on peut y ranger les photos des maquettes. */
+  racine?: FileSystemDirectoryHandle;
+}
 
 type Dir = FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> };
 const UTILES = /\.(json|vitrine|pdf|png|jpe?g|webp|glb)$/i;

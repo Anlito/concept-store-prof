@@ -15,6 +15,7 @@ import { SiteViewer } from './site';
 import { editerGrilles } from './grilles';
 import { app, choisirFichiers, demander, fmtNote, quand, reduirePhoto, slug, telecharger } from './ui';
 import { accueil } from './accueil';
+import { arreterCamera, carteCamera } from './camera';
 
 /* Écran d'une classe : équipes à gauche, travail de l'équipe au centre (3D, site, maquette, oral, bilan),
    grille de notation à droite. Chaque changement est gardé aussitôt dans le navigateur. */
@@ -27,6 +28,16 @@ const ONGLETS: { id: Onglet; label: string; icon: string }[] = [
 ];
 
 let viewer: Viewer | null = null, site: SiteViewer | null = null;
+/** Photos prises dans l'outil et rangées dans le dossier de l'équipe. */
+const PREFIXE_PHOTO = 'Maquette_';
+/** Droit d'écrire dans le dossier de la classe (ouvert en lecture) : demandé une fois, au premier enregistrement. */
+async function droitEcriture(d: FileSystemDirectoryHandle) {
+  type P = FileSystemDirectoryHandle & { queryPermission?(o: object): Promise<string>; requestPermission?(o: object): Promise<string> };
+  try {
+    if ((await (d as P).queryPermission?.({ mode: 'readwrite' })) === 'granted') return true;
+    return (await (d as P).requestPermission?.({ mode: 'readwrite' })) === 'granted';
+  } catch { return false; }
+}
 
 export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
   viewer ??= new Viewer(); site ??= new SiteViewer();
@@ -48,7 +59,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
   const titre = h('div', { class: 'tb-status' });
   const top = h('header', { class: 'tb' },
     h('div', { class: 'tb-l' },
-      h('button', { class: 'tb-logo pf-logo', type: 'button', title: 'Accueil', onclick: () => { viewer?.activer(false); void accueil(); } }, icon('storefront')),
+      h('button', { class: 'tb-logo pf-logo', type: 'button', title: 'Accueil', onclick: () => { viewer?.activer(false); arreterCamera(); void accueil(); } }, icon('storefront')),
       h('div', { class: 'tb-title' }, h('div', { class: 'tb-name pf-classe-nom' }, `Classe ${c.classe}`), titre)),
     h('div'),
     h('div', { class: 'tb-r' },
@@ -87,6 +98,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
 
   function rendreMain() {
     viewer?.activer(false);
+    if (onglet !== 'maquette') arreterCamera(); // la caméra reste allumée d'une équipe à l'autre, pas hors de l'onglet
     if (!dossier) { main.replaceChildren(h('div', { class: 'pf-vide' }, 'Aucune équipe.')); return; }
     const e = ev(), f = fichiers.get(dossier);
     const tabs = h('div', { class: 'pf-tabs', role: 'tablist' }, ...ONGLETS.map(o => h('button', {
@@ -128,7 +140,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
   const vide = (ic: string, t: string) => h('div', { class: 'pf-vide' }, icon(ic), h('p', null, t));
   function ouvrirFichier(f: File) { const u = URL.createObjectURL(f); window.open(u, '_blank'); setTimeout(() => URL.revokeObjectURL(u), 60000); }
 
-  /* ---------- Maquette carton : photos ---------- */
+  /* ---------- Maquette carton : photos (webcam, fichiers) ---------- */
   function maquette(e: EvalEquipe, f: Equipe | undefined) {
     const ajouter = async (files: File[]) => {
       const imgs = files.filter(x => x.type.startsWith('image/'));
@@ -137,7 +149,24 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
       garder(); rendreMain(); rendreSide();
       toast(`${imgs.length} photo(s) ajoutée(s).`);
     };
-    const zone = h('div', { class: 'pf-drop', 'data-testid': 'photos' },
+    const racine = lecture?.racine;
+    const camera = carteCamera({
+      ou: racine ? `La photo est ajoutée à l’évaluation et rangée dans le dossier de l’équipe (${dossier}).` : 'La photo est ajoutée à l’évaluation (ouvre le dossier de la classe pour la ranger aussi dans le dossier de l’équipe).',
+      garder: async photo => {
+        // Droit d'écrire dans le dossier de la classe : demandé tout de suite (le navigateur exige un clic récent).
+        const ecrire = racine ? await droitEcriture(racine) : false;
+        const blob = await photo();
+        e.photos.push({ id: Math.random().toString(36).slice(2, 10), data: await reduirePhoto(new File([blob], 'photo.jpg', { type: 'image/jpeg' })), date: Date.now() });
+        garder(); rendrePhotos(); rendreSide();
+        if (!racine) return 'Photo ajoutée à l’évaluation.';
+        if (!ecrire) return 'Photo ajoutée à l’évaluation. Le navigateur n’a pas donné le droit d’écrire dans le dossier de la classe : elle n’y est pas copiée.';
+        try { return `Photo ajoutée à l’évaluation et enregistrée dans le dossier ${dossier} : ${await ecrirePhoto(racine, blob)}`; }
+        catch { return 'Photo ajoutée à l’évaluation, mais pas copiée dans le dossier de l’équipe (réseau ou droits du dossier).'; }
+      },
+    });
+    const photos = h('div');
+    const rendrePhotos = () => photos.replaceChildren(zonePhotos());
+    const zonePhotos = () => { const zone = h('div', { class: 'pf-drop', 'data-testid': 'photos' },
       ...e.photos.map(p => h('figure', { class: 'pf-photo' },
         h('img', { src: p.data, alt: 'Photo de la maquette', onclick: () => agrandir(p.data) }),
         h('button', { class: 'pf-photo-x', type: 'button', title: 'Retirer cette photo', 'aria-label': 'Retirer cette photo', onclick: async () => {
@@ -148,8 +177,33 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     zone.addEventListener('dragover', ev => { ev.preventDefault(); zone.classList.add('over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('over'));
     zone.addEventListener('drop', ev => { ev.preventDefault(); zone.classList.remove('over'); void ajouter([...(ev.dataTransfer?.files ?? [])]); });
+    return zone; };
+    rendrePhotos();
     const plans = f?.plans.length ? h('div', { class: 'pf-infos' }, ...f.plans.map(p => info('print', p.name, 'plan A3 de l’équipe : à comparer avec la maquette', () => ouvrirFichier(p)))) : null;
-    return h('div', { class: 'pf-tabc pf-scroll' }, plans, zone);
+    // Photos déposées par l'équipe dans son dossier (celles prises ici sont déjà dans l'évaluation).
+    const autres = (f?.images ?? []).filter(x => !x.name.startsWith(PREFIXE_PHOTO));
+    const dossierImgs = autres.length ? h('div', { class: 'pf-sec' }, h('div', { class: 'p-sec-t' }, 'Photos dans le dossier de l’équipe'),
+      h('div', { class: 'pf-drop' }, ...autres.map(x => { const u = URL.createObjectURL(x); return h('figure', { class: 'pf-photo', title: x.name }, h('img', { src: u, alt: x.name, onclick: () => agrandir(u) })); }))) : null;
+    return h('div', { class: 'pf-tabc pf-scroll' }, plans, camera, h('div', { class: 'p-sec-t' }, 'Photos de l’évaluation'), photos, dossierImgs);
+  }
+  /** Le dossier de l'équipe dans celui de la classe (ou la classe elle-même si c'est le dossier d'une seule équipe). */
+  async function dossierDeLEquipe(racine: FileSystemDirectoryHandle) {
+    return racine.name === dossier && !(await existeSousDossier(racine, dossier)) ? racine : racine.getDirectoryHandle(dossier);
+  }
+  async function existeSousDossier(r: FileSystemDirectoryHandle, nom: string) { try { await r.getDirectoryHandle(nom); return true; } catch { return false; } }
+  /** Range la photo en .jpg dans le dossier de l'équipe : « Maquette_Lea_Malik_2026-10-17_10h42.jpg ». */
+  async function ecrirePhoto(racine: FileSystemDirectoryHandle, blob: Blob) {
+    const d = await dossierDeLEquipe(racine);
+    const existants = new Set<string>();
+    for await (const x of (d as FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> }).values()) existants.add(x.name.toLowerCase());
+    const t = new Date(), z = (n: number) => String(n).padStart(2, '0');
+    const base = `${PREFIXE_PHOTO}${dossier.replace(/[\\/:*?"<>|]+/g, '_')}_${t.getFullYear()}-${z(t.getMonth() + 1)}-${z(t.getDate())}_${z(t.getHours())}h${z(t.getMinutes())}`;
+    let nom = base + '.jpg';
+    for (let i = 2; existants.has(nom.toLowerCase()); i++) nom = `${base}_${i}.jpg`;
+    const fh = await d.getFileHandle(nom, { create: true });
+    const w = await (fh as FileSystemFileHandle & { createWritable(): Promise<FileSystemWritableFileStream> }).createWritable();
+    await w.write(blob); await w.close();
+    return nom;
   }
   function agrandir(src: string) {
     const fermer = () => veil.remove();
