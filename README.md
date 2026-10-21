@@ -1,5 +1,27 @@
 # Concept Store · Professeur
 
+<!-- suivi-maintenance:debut -->
+## État du projet et améliorations documentées — 21 octobre 2026
+
+- La version locale reprend la dernière version de la branche principale publiée sur GitHub.
+- Le suivi existant couvre la modélisation 3D, le site vitrine, la maquette carton et l’oral ; il comprend les photos de la maquette à la webcam, les coefficients et l’export CSV.
+- Aucune fonction de l’application n’a été modifiée pendant cette intervention de synchronisation et de documentation. Les modes d’utilisation et de notation décrits ci-dessous sont conservés.
+
+### Référence locale et maintenance
+
+Dossier de travail de référence : **Documents/ConceptStoreProf**. Dépôt : [Anlito/concept-store-prof](https://github.com/Anlito/concept-store-prof). La branche principale est **main**. Les copies temporaires d’un chat ou les worktrees servent au travail intermédiaire ; elles ne remplacent pas ce dossier.
+
+À chaque intervention :
+
+1. Vérifier les modifications locales et la version publiée avant de commencer ; sauvegarder le travail non enregistré.
+2. Décrire dans ce README les améliorations, les vérifications, les limites et les opérations restantes.
+3. Publier les changements autorisés, puis synchroniser le dossier local de référence avec le même commit.
+4. Contrôler le commit local, le commit distant et les fichiers restants avant d’annoncer que le projet est à jour. Signaler explicitement tout décalage ou travail conservé hors publication.
+
+Cette règle permet de reprendre le projet dans un autre outil local sans perdre les dernières améliorations. Une publication du site ne met pas automatiquement à jour les dossiers du PC.
+
+<!-- suivi-maintenance:fin -->
+
 Outil de l'enseignant pour le projet **« Concept Store »** (technologie, cycle 4) : il ouvre le dossier d'une classe
 et montre, pour chaque équipe, la **modélisation 3D** (Concept Store 3D) et le **site internet** (Vitrine),
 avec une **notation par grilles de critères** :
