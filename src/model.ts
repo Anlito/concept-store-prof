@@ -55,6 +55,8 @@ export interface EvalEquipe {
   motifs: Record<string, string>;
   comm: Partial<Record<PartId, string>>;
   photos: Photo[];
+  /** Plan A3 de l'équipe imprimé par le professeur : date de l'impression (ms). */
+  imprime?: number;
 }
 export interface Classeur {
   format: 'concept-store-prof';

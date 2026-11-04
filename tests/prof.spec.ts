@@ -50,7 +50,7 @@ test('ouvrir la classe : équipes, 3D, site, plan A3', async ({ page }) => {
   await expect(teams.nth(1)).toContainText('Léa, Malik'); // élèves lus dans le cartouche
   await teams.nth(1).click();
   await expect(page.locator('.pf-infos')).toContainText('70 m²');
-  await expect(page.locator('.pf-infos')).toContainText('1 PDF');
+  await expect(page.locator('.pf-infos')).toContainText('Plan-A3-Lea-Malik.pdf');
   await expect(page.locator('.vw canvas')).toBeVisible();
   // Site : fabriqué avec le code de Vitrine, affiché dans le cadre
   await page.getByRole('tab', { name: 'Site internet' }).click();
@@ -156,4 +156,36 @@ test('grilles : coefficient, critère retiré, sauvegarde et import', async ({ p
   await page.getByRole('button', { name: /Importer une sauvegarde/ }).click();
   await (await ch).setFiles(fichier);
   await expect(page.locator('.pf-classe')).toContainText('4B');
+});
+
+test('plan A3 : case « Imprimé » pour suivre les impressions, gardée d’une séance à l’autre', async ({ page }) => {
+  const classe = await fabriquerClasse(page);
+  await ouvrir(page, classe);
+  const lea = page.locator('.pf-team', { hasText: 'Lea-Malik' });
+  await lea.click();
+  await expect(lea.locator('[data-impression]')).toHaveAttribute('data-impression', 'a-imprimer');
+  await expect(page.locator('.tb-status').first()).toContainText('plans imprimés : 0/1');
+  const plan = page.getByTestId('plan-a3');
+  await expect(plan).toContainText('à imprimer');
+  await plan.getByLabel('Plan A3 imprimé').check();
+  await expect(page.getByTestId('plan-a3')).toContainText('imprimé le');
+  await expect(lea.locator('[data-impression]')).toHaveAttribute('data-impression', 'imprime');
+  await expect(page.locator('.tb-status').first()).toContainText('plans imprimés : 1/1');
+  // Aussi dans l'onglet Maquette carton
+  await page.getByRole('tab', { name: 'Maquette carton' }).click();
+  await expect(page.getByTestId('plan-a3')).toContainText('imprimé le');
+  // L'équipe enregistre un nouveau PDF après l'impression : à réimprimer
+  await page.waitForTimeout(1100);
+  writeFileSync(join(classe, 'Lea-Malik', 'Plan-A3-Lea-Malik.pdf'), '%PDF-1.4\n% v2\n%%EOF\n');
+  await page.reload();
+  // Même classe (déjà évaluée : le champ propose son nom) : les notes et la case sont retrouvées
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('ouvrir-dossier').click();
+  await (await chooser).setFiles(classe);
+  const dlg = page.getByRole('dialog', { name: 'Quelle classe ?' });
+  await dlg.getByRole('combobox').fill('4B');
+  await dlg.getByRole('button', { name: 'Ouvrir' }).click();
+  await page.locator('.pf-team', { hasText: 'Lea-Malik' }).click();
+  await expect(page.locator('.pf-team', { hasText: 'Lea-Malik' }).locator('[data-impression]')).toHaveAttribute('data-impression', 'modifie');
+  await expect(page.getByTestId('plan-a3')).toContainText('modifié depuis l’impression');
 });

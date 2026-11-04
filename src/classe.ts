@@ -77,8 +77,16 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
 
   /* ---------- Rendu ---------- */
   function rendre() {
-    titre.textContent = lecture ? `${noms().length} équipe(s) · dossier lu` : `${noms().length} équipe(s) · sans le dossier (notes seulement)`;
+    majTitre();
     rendreSide(); rendreMain(); rendrePanel();
+  }
+
+  function majTitre() {
+    const base = lecture ? `${noms().length} équipe(s) · dossier lu` : `${noms().length} équipe(s) · sans le dossier (notes seulement)`;
+    // Suivi des impressions : équipes qui ont enregistré un plan A3 (ou déjà imprimé), et combien sont imprimés.
+    const avecPlan = noms().filter(n => dernierPlan(fichiers.get(n)) || c.equipes[n].imprime);
+    const faits = avecPlan.filter(n => etatPlan(c.equipes[n], fichiers.get(n)) === 'imprime').length;
+    titre.textContent = avecPlan.length ? `${base} · plans imprimés : ${faits}/${avecPlan.length}` : base;
   }
 
   function rendreSide() {
@@ -92,6 +100,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
           h('span', { class: 'pf-chip' + (f?.projet ? ' ok' : '') , title: f?.projet ? 'Modélisation 3D trouvée' : 'Pas de modélisation 3D' }, icon('view_in_ar')),
           h('span', { class: 'pf-chip' + (f?.site ? ' ok' : ''), title: f?.site ? 'Site trouvé' : 'Pas de site' }, icon('web')),
           h('span', { class: 'pf-chip' + (e.photos.length ? ' ok' : ''), title: `${e.photos.length} photo(s) de la maquette` }, icon('photo_camera')),
+          puceImpression(e, f),
           h('span', { class: 'pf-prog', title: 'Parties notées' }, `${faites}/4`)));
     }));
   }
@@ -117,10 +126,10 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
       if (!f?.projet) return vide('view_in_ar', lecture ? 'Pas de modélisation 3D (.json) dans ce dossier d’équipe.' : 'Ouvre le dossier de la classe pour voir la modélisation 3D.');
       const d = f.projet.doc, nbPieces = d.floor ? rooms(d).length : 0;
       const infos = h('div', { class: 'pf-infos' },
+        cartePlan(e, f), // en tête : la case « Imprimé » reste visible sur un petit écran
         info('description', f.projet.nom, `enregistré ${quand(f.projet.date)}`),
         info('grid_on', d.floor ? `${Math.round(area(d.floor.points) * 10) / 10} m²`.replace('.', ',') : 'Pas de surface', `${nbPieces} pièce(s) · ${d.partitions.length} cloison(s)${d.autreNiveau ? ' · + 1 étage' : ''}`),
-        info('chair', `${d.objects.length} meuble(s)`, `${d.creations.length} création(s) de l’atelier`),
-        info('print', f.plans.length ? `${f.plans.length} PDF` : 'Pas de plan A3', f.plans.length ? 'dans le dossier' : 'enregistré par l’équipe', f.plans.length ? () => ouvrirFichier(f.plans[0]) : undefined));
+        info('chair', `${d.objects.length} meuble(s)`, `${d.creations.length} création(s) de l’atelier`));
       viewer!.afficher(d);
       requestAnimationFrame(() => viewer!.activer(onglet === 'modele'));
       return h('div', { class: 'pf-tabc' }, infos, viewer!.el);
@@ -137,6 +146,40 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
 
   const info = (ic: string, t: string, s: string, onclick?: () => void) =>
     h(onclick ? 'button' : 'div', { class: 'pf-info' + (onclick ? ' clic' : ''), type: onclick ? 'button' : undefined, onclick }, icon(ic), h('span', null, h('b', null, t), h('span', null, s)));
+  /* ---------- Plan A3 : imprimé par le professeur ? ---------- */
+  /** Le plan A3 le plus récent de l'équipe. */
+  function dernierPlan(f: Equipe | undefined) { return f?.plans.reduce<File | undefined>((m, p) => (!m || p.lastModified > m.lastModified ? p : m), undefined); }
+  /** aucun : pas de PDF ; a-imprimer ; imprime ; modifie : l'équipe a enregistré un PDF plus récent que l'impression. */
+  function etatPlan(e: EvalEquipe, f: Equipe | undefined): 'aucun' | 'a-imprimer' | 'imprime' | 'modifie' {
+    const p = dernierPlan(f);
+    if (e.imprime) return p && p.lastModified > e.imprime ? 'modifie' : 'imprime';
+    return p ? 'a-imprimer' : 'aucun';
+  }
+  function puceImpression(e: EvalEquipe, f: Equipe | undefined) {
+    const st = etatPlan(e, f);
+    const t = st === 'imprime' ? `Plan A3 imprimé le ${quand(e.imprime!)}` : st === 'modifie' ? 'Plan A3 modifié par l’équipe depuis l’impression : à réimprimer ?'
+      : st === 'a-imprimer' ? 'Plan A3 à imprimer' : 'Pas de plan A3 dans le dossier';
+    return h('span', { class: 'pf-chip' + (st === 'imprime' ? ' ok' : st === 'modifie' ? ' warn' : st === 'a-imprimer' ? ' todo' : ''), title: t, 'data-impression': st }, icon('print'));
+  }
+  /** Carte du plan A3 : ouvrir le PDF, et la case « Imprimé » à cocher après l'impression. */
+  function cartePlan(e: EvalEquipe, f: Equipe | undefined): HTMLElement {
+    const p = dernierPlan(f);
+    if (!p && !e.imprime) return info('print', 'Pas de plan A3', lecture ? 'enregistré par l’équipe' : 'ouvre le dossier de la classe');
+    const st = etatPlan(e, f);
+    const cb = h('input', { type: 'checkbox', checked: !!e.imprime, 'aria-label': 'Plan A3 imprimé' }) as HTMLInputElement;
+    const sous = st === 'imprime' ? `imprimé le ${quand(e.imprime!)}` : st === 'modifie' ? `modifié depuis l’impression du ${quand(e.imprime!)}` : 'à imprimer';
+    const carte: HTMLElement = h('div', { class: 'pf-info pf-plan ' + st, 'data-testid': 'plan-a3' }, icon('print'),
+      h('span', null, h('b', null, p?.name ?? 'Plan A3'), h('span', null, sous)),
+      p ? h('button', { class: 'btn btn-ghost pf-plan-o', type: 'button', title: 'Ouvrir le PDF pour l’imprimer', onclick: () => ouvrirFichier(p) }, 'Ouvrir') : null,
+      h('label', { class: 'pf-imp' }, cb, 'Imprimé'));
+    cb.addEventListener('change', () => {
+      if (cb.checked) e.imprime = Date.now(); else delete e.imprime;
+      garder(); rendreSide(); majTitre();
+      carte.replaceWith(cartePlan(e, f));
+    });
+    return carte;
+  }
+
   const vide = (ic: string, t: string) => h('div', { class: 'pf-vide' }, icon(ic), h('p', null, t));
   function ouvrirFichier(f: File) { const u = URL.createObjectURL(f); window.open(u, '_blank'); setTimeout(() => URL.revokeObjectURL(u), 60000); }
 
@@ -179,7 +222,7 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
     zone.addEventListener('drop', ev => { ev.preventDefault(); zone.classList.remove('over'); void ajouter([...(ev.dataTransfer?.files ?? [])]); });
     return zone; };
     rendrePhotos();
-    const plans = f?.plans.length ? h('div', { class: 'pf-infos' }, ...f.plans.map(p => info('print', p.name, 'plan A3 de l’équipe : à comparer avec la maquette', () => ouvrirFichier(p)))) : null;
+    const plans = h('div', { class: 'pf-infos' }, cartePlan(e, f));
     // Photos déposées par l'équipe dans son dossier (celles prises ici sont déjà dans l'évaluation).
     const autres = (f?.images ?? []).filter(x => !x.name.startsWith(PREFIXE_PHOTO));
     const dossierImgs = autres.length ? h('div', { class: 'pf-sec' }, h('div', { class: 'p-sec-t' }, 'Photos dans le dossier de l’équipe'),

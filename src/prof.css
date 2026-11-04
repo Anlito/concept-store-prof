@@ -177,3 +177,16 @@
 .cam-msg.juste { color: var(--ok); }
 .cam-msg.erreur { color: var(--warn, #8A5300); }
 .pf-sec { display: flex; flex-direction: column; gap: 6px; }
+
+/* Plan A3 : suivi des impressions */
+.pf-chip.todo { background: var(--accent-soft); color: var(--accent); }
+.pf-chip.warn { background: var(--warn-bg, #FCEFD6); color: var(--warn, #8A5300); }
+.pf-plan { gap: 10px; }
+.pf-plan.imprime { box-shadow: inset 0 0 0 1.5px var(--ok); }
+.pf-plan.imprime > .ic { color: var(--ok); }
+.pf-plan.modifie { box-shadow: inset 0 0 0 1.5px var(--warn, #8A5300); }
+.pf-plan.modifie > span > span { color: var(--warn, #8A5300); font-weight: 700; }
+.pf-plan.a-imprimer > span > span { color: var(--accent); font-weight: 700; }
+.pf-plan-o { height: 30px; padding: 0 10px; font-size: 13px; }
+.pf-imp { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 8px; background: var(--track); }
+.pf-imp input { width: 18px; height: 18px; accent-color: var(--ok); cursor: pointer; margin: 0; }
