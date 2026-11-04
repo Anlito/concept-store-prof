@@ -190,3 +190,4 @@
 .pf-plan-o { height: 30px; padding: 0 10px; font-size: 13px; }
 .pf-imp { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 8px; background: var(--track); }
 .pf-imp input { width: 18px; height: 18px; accent-color: var(--ok); cursor: pointer; margin: 0; }
+.pf-plans { display: contents; }

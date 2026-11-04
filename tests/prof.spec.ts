@@ -189,3 +189,22 @@ test('plan A3 : case « Imprimé » pour suivre les impressions, gardée d’une
   await expect(page.locator('.pf-team', { hasText: 'Lea-Malik' }).locator('[data-impression]')).toHaveAttribute('data-impression', 'modifie');
   await expect(page.getByTestId('plan-a3')).toContainText('modifié depuis l’impression');
 });
+
+test('boutique à étage : un plan A3 par niveau, chacun avec sa case « Imprimé »', async ({ page }) => {
+  const classe = await fabriquerClasse(page);
+  writeFileSync(join(classe, 'Ines-Tom', 'Plan-A3-Ines_Tom-RDC.pdf'), '%PDF-1.4\n%%EOF\n');
+  writeFileSync(join(classe, 'Ines-Tom', 'Plan-A3-Ines_Tom-Etage.pdf'), '%PDF-1.4\n%%EOF\n');
+  await ouvrir(page, classe);
+  await expect(page.locator('.tb-status').first()).toContainText('plans imprimés : 0/3'); // 1 plan pour Lea-Malik, 2 pour Ines-Tom
+  const ines = page.locator('.pf-team', { hasText: 'Ines-Tom' });
+  await ines.click();
+  await expect(page.getByTestId('plan-a3')).toHaveCount(2);
+  await expect(page.locator('[data-testid=plan-a3][data-niveau=rdc]')).toContainText('rez-de-chaussée');
+  await expect(page.locator('[data-testid=plan-a3][data-niveau=etage]')).toContainText('étage');
+  await page.getByLabel('Plan A3 du rez-de-chaussée imprimé').check();
+  await expect(ines.locator('[data-impression]')).toHaveAttribute('data-impression', 'a-imprimer'); // l'étage reste à imprimer
+  await expect(page.locator('.tb-status').first()).toContainText('plans imprimés : 1/3');
+  await page.getByLabel('Plan A3 de l’étage imprimé').check();
+  await expect(ines.locator('[data-impression]')).toHaveAttribute('data-impression', 'imprime');
+  await expect(page.locator('.tb-status').first()).toContainText('plans imprimés : 2/3');
+});

@@ -45,6 +45,9 @@ export function grillesParDefaut(): Record<PartId, Grille> {
 /** Points donnés à chaque critère (null = pas encore noté). */
 export type Points = (number | null)[];
 export interface Photo { id: string; data: string; date: number }
+/** Plan A3 : « plan » (boutique sans étage, ou PDF de deux pages des anciennes versions), « rdc » ou « etage ». */
+export type NiveauPlan = 'plan' | 'rdc' | 'etage';
+
 export interface EvalEquipe {
   /** Élèves de l'équipe (lus dans le cartouche ou le nom du dossier, modifiables). */
   eleves: string[];
@@ -55,8 +58,8 @@ export interface EvalEquipe {
   motifs: Record<string, string>;
   comm: Partial<Record<PartId, string>>;
   photos: Photo[];
-  /** Plan A3 de l'équipe imprimé par le professeur : date de l'impression (ms). */
-  imprime?: number;
+  /** Plans A3 imprimés par le professeur, par niveau (« plan » : boutique sans étage), date de l'impression (ms). */
+  imprimes?: Partial<Record<NiveauPlan, number>>;
 }
 export interface Classeur {
   format: 'concept-store-prof';
@@ -71,7 +74,9 @@ export interface Classeur {
 export const nouveauClasseur = (classe: string): Classeur => ({ format: 'concept-store-prof', version: 1, classe, grilles: grillesParDefaut(), equipes: {}, maj: Date.now() });
 export const nouvelleEval = (eleves: string[]): EvalEquipe => ({ eleves, notes: { modele: [], site: [], maquette: [], oral: [] }, bonus: {}, motifs: {}, comm: {}, photos: [] });
 /** Évaluation enregistrée par une version précédente (oral par élève, « ajust ») : mise au format actuel. */
-export function normaliserEval(e: EvalEquipe & { oral?: unknown; ajust?: Record<string, number> }): EvalEquipe {
+export function normaliserEval(e: EvalEquipe & { oral?: unknown; ajust?: Record<string, number>; imprime?: number }): EvalEquipe {
+  if (e.imprime) e.imprimes = { plan: e.imprime, ...e.imprimes }; // version 1.4.0 : une seule case par équipe
+  delete e.imprime;
   const n = e.notes as Partial<Record<PartId, Points>> | undefined;
   e.notes = { modele: n?.modele ?? [], site: n?.site ?? [], maquette: n?.maquette ?? [], oral: n?.oral ?? [] };
   e.bonus ??= e.ajust ?? {}; e.motifs ??= {}; e.comm ??= {}; e.photos ??= [];

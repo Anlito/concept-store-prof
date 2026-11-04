@@ -6,7 +6,7 @@ import { useProfFiles } from '@cs3d/library/profFolder';
 import { verifier } from '@vitrine/lib/controle';
 import {
   PARTS, PART_ICON, PART_LABEL, elevesDevines, exportCsv, noteSur20, normaliserEval, notesEleve, nouvelleEval, progression,
-  type Classeur, type EvalEquipe, type PartId,
+  type Classeur, type EvalEquipe, type NiveauPlan, type PartId,
 } from './model';
 import { ecrireClasseur } from './storage';
 import type { Equipe, Lecture } from './scan';
@@ -84,9 +84,9 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
   function majTitre() {
     const base = lecture ? `${noms().length} équipe(s) · dossier lu` : `${noms().length} équipe(s) · sans le dossier (notes seulement)`;
     // Suivi des impressions : équipes qui ont enregistré un plan A3 (ou déjà imprimé), et combien sont imprimés.
-    const avecPlan = noms().filter(n => dernierPlan(fichiers.get(n)) || c.equipes[n].imprime);
-    const faits = avecPlan.filter(n => etatPlan(c.equipes[n], fichiers.get(n)) === 'imprime').length;
-    titre.textContent = avecPlan.length ? `${base} · plans imprimés : ${faits}/${avecPlan.length}` : base;
+    // Un plan par niveau : une boutique à étage compte pour deux plans.
+    const plans = noms().flatMap(n => plansDe(fichiers.get(n)).map(p => etatDe(c.equipes[n], p.niveau, p.file)));
+    titre.textContent = plans.length ? `${base} · plans imprimés : ${plans.filter(x => x === 'imprime').length}/${plans.length}` : base;
   }
 
   function rendreSide() {
@@ -146,38 +146,56 @@ export async function ouvrirClasse(c: Classeur, lecture: Lecture | null) {
 
   const info = (ic: string, t: string, s: string, onclick?: () => void) =>
     h(onclick ? 'button' : 'div', { class: 'pf-info' + (onclick ? ' clic' : ''), type: onclick ? 'button' : undefined, onclick }, icon(ic), h('span', null, h('b', null, t), h('span', null, s)));
-  /* ---------- Plan A3 : imprimé par le professeur ? ---------- */
-  /** Le plan A3 le plus récent de l'équipe. */
-  function dernierPlan(f: Equipe | undefined) { return f?.plans.reduce<File | undefined>((m, p) => (!m || p.lastModified > m.lastModified ? p : m), undefined); }
-  /** aucun : pas de PDF ; a-imprimer ; imprime ; modifie : l'équipe a enregistré un PDF plus récent que l'impression. */
-  function etatPlan(e: EvalEquipe, f: Equipe | undefined): 'aucun' | 'a-imprimer' | 'imprime' | 'modifie' {
-    const p = dernierPlan(f);
-    if (e.imprime) return p && p.lastModified > e.imprime ? 'modifie' : 'imprime';
-    return p ? 'a-imprimer' : 'aucun';
+  /* ---------- Plans A3 : imprimés par le professeur ? ---------- */
+  type Etat = 'aucun' | 'a-imprimer' | 'imprime' | 'modifie';
+  const NIVEAU_NOM: Record<NiveauPlan, string> = { plan: 'Plan A3', rdc: 'Plan A3 du rez-de-chaussée', etage: 'Plan A3 de l’étage' };
+  const niveauDe = (nom: string): NiveauPlan => (/etage|étage/i.test(nom) ? 'etage' : /rdc|rez/i.test(nom) ? 'rdc' : 'plan');
+  /** Le PDF le plus récent de chaque niveau (un ancien plan unique est oublié quand l'équipe a fait ses plans par niveau). */
+  function plansDe(f: Equipe | undefined): { niveau: NiveauPlan; file: File }[] {
+    const m = new Map<NiveauPlan, File>();
+    for (const p of f?.plans ?? []) { const n = niveauDe(p.name), x = m.get(n); if (!x || p.lastModified > x.lastModified) m.set(n, p); }
+    const plan = m.get('plan'), parNiveau = [m.get('rdc'), m.get('etage')].filter(Boolean) as File[];
+    if (plan && parNiveau.some(x => x.lastModified > plan.lastModified)) m.delete('plan');
+    return (['plan', 'rdc', 'etage'] as NiveauPlan[]).filter(n => m.has(n)).map(n => ({ niveau: n, file: m.get(n)! }));
+  }
+  function etatDe(e: EvalEquipe, niveau: NiveauPlan, file: File): Etat {
+    const t = e.imprimes?.[niveau];
+    if (t) return file.lastModified > t ? 'modifie' : 'imprime';
+    return 'a-imprimer';
+  }
+  /** État de l'équipe : à réimprimer s'il le faut, sinon à imprimer, sinon tout imprimé. */
+  function etatPlan(e: EvalEquipe, f: Equipe | undefined): Etat {
+    const es = plansDe(f).map(p => etatDe(e, p.niveau, p.file));
+    if (!es.length) return 'aucun';
+    return es.includes('modifie') ? 'modifie' : es.includes('a-imprimer') ? 'a-imprimer' : 'imprime';
   }
   function puceImpression(e: EvalEquipe, f: Equipe | undefined) {
-    const st = etatPlan(e, f);
-    const t = st === 'imprime' ? `Plan A3 imprimé le ${quand(e.imprime!)}` : st === 'modifie' ? 'Plan A3 modifié par l’équipe depuis l’impression : à réimprimer ?'
-      : st === 'a-imprimer' ? 'Plan A3 à imprimer' : 'Pas de plan A3 dans le dossier';
+    const st = etatPlan(e, f), ps = plansDe(f);
+    const detail = ps.length > 1 ? ` (${ps.filter(p => etatDe(e, p.niveau, p.file) === 'imprime').length}/${ps.length})` : '';
+    const t = st === 'imprime' ? `Plan${ps.length > 1 ? 's' : ''} A3 imprimé${ps.length > 1 ? 's' : ''}` : st === 'modifie' ? 'Plan A3 modifié par l’équipe depuis l’impression : à réimprimer ?'
+      : st === 'a-imprimer' ? `Plan A3 à imprimer${detail}` : 'Pas de plan A3 dans le dossier';
     return h('span', { class: 'pf-chip' + (st === 'imprime' ? ' ok' : st === 'modifie' ? ' warn' : st === 'a-imprimer' ? ' todo' : ''), title: t, 'data-impression': st }, icon('print'));
   }
-  /** Carte du plan A3 : ouvrir le PDF, et la case « Imprimé » à cocher après l'impression. */
+  /** Cartes des plans A3 (une par niveau) : ouvrir le PDF, et la case « Imprimé » à cocher après l'impression. */
   function cartePlan(e: EvalEquipe, f: Equipe | undefined): HTMLElement {
-    const p = dernierPlan(f);
-    if (!p && !e.imprime) return info('print', 'Pas de plan A3', lecture ? 'enregistré par l’équipe' : 'ouvre le dossier de la classe');
-    const st = etatPlan(e, f);
-    const cb = h('input', { type: 'checkbox', checked: !!e.imprime, 'aria-label': 'Plan A3 imprimé' }) as HTMLInputElement;
-    const sous = st === 'imprime' ? `imprimé le ${quand(e.imprime!)}` : st === 'modifie' ? `modifié depuis l’impression du ${quand(e.imprime!)}` : 'à imprimer';
-    const carte: HTMLElement = h('div', { class: 'pf-info pf-plan ' + st, 'data-testid': 'plan-a3' }, icon('print'),
-      h('span', null, h('b', null, p?.name ?? 'Plan A3'), h('span', null, sous)),
-      p ? h('button', { class: 'btn btn-ghost pf-plan-o', type: 'button', title: 'Ouvrir le PDF pour l’imprimer', onclick: () => ouvrirFichier(p) }, 'Ouvrir') : null,
-      h('label', { class: 'pf-imp' }, cb, 'Imprimé'));
-    cb.addEventListener('change', () => {
-      if (cb.checked) e.imprime = Date.now(); else delete e.imprime;
-      garder(); rendreSide(); majTitre();
-      carte.replaceWith(cartePlan(e, f));
-    });
-    return carte;
+    const ps = plansDe(f);
+    if (!ps.length) return info('print', 'Pas de plan A3', lecture ? 'enregistré par l’équipe' : 'ouvre le dossier de la classe');
+    const boite: HTMLElement = h('div', { class: 'pf-plans' }, ...ps.map(({ niveau, file }) => {
+      const st = etatDe(e, niveau, file), t = e.imprimes?.[niveau];
+      const cb = h('input', { type: 'checkbox', checked: !!t, 'aria-label': `${NIVEAU_NOM[niveau]} imprimé` }) as HTMLInputElement;
+      const sous = st === 'imprime' ? `imprimé le ${quand(t!)}` : st === 'modifie' ? `modifié depuis l’impression du ${quand(t!)}` : 'à imprimer';
+      cb.addEventListener('change', () => {
+        e.imprimes ??= {};
+        if (cb.checked) e.imprimes[niveau] = Date.now(); else delete e.imprimes[niveau];
+        garder(); rendreSide(); majTitre();
+        boite.replaceWith(cartePlan(e, f));
+      });
+      return h('div', { class: 'pf-info pf-plan ' + st, 'data-testid': 'plan-a3', 'data-niveau': niveau }, icon('print'),
+        h('span', null, h('b', null, niveau === 'plan' ? file.name : niveau === 'rdc' ? 'Plan A3 · rez-de-chaussée' : 'Plan A3 · étage'), h('span', null, sous)),
+        h('button', { class: 'btn btn-ghost pf-plan-o', type: 'button', title: `Ouvrir ${file.name} pour l’imprimer`, onclick: () => ouvrirFichier(file) }, 'Ouvrir'),
+        h('label', { class: 'pf-imp' }, cb, 'Imprimé'));
+    }));
+    return boite;
   }
 
   const vide = (ic: string, t: string) => h('div', { class: 'pf-vide' }, icon(ic), h('p', null, t));
